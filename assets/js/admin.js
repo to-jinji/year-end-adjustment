@@ -79,7 +79,7 @@ $('importCsv').onclick=async()=>{
   const header=rows[0].map(v=>v.trim().toLowerCase());
   const required=['staff_id','display_name','birth_date','editable_until'];
   if(required.some((h,i)=>header[i]!==h))return show($('csvError'),'1行目は staff_id,display_name,birth_date,editable_until にしてください。');
-  const errors=[];let success=0;
+  const errors=[];let success=0;const parsedRows=[];
   $('importCsv').disabled=true;
   for(let i=1;i<rows.length;i++){
     const [staffId='',name='',dob='',deadline='']=rows[i].map(v=>v.trim());
@@ -88,10 +88,17 @@ $('importCsv').onclick=async()=>{
       if(!name)throw new Error('氏名が空です');
       if(!/^\d{4}-\d{2}-\d{2}$/.test(dob))throw new Error('生年月日はYYYY-MM-DDで入力してください');
       const iso=normalizeDeadline(deadline);
-      const {error}=await supabase.rpc('admin_register_staff',{p_staff_id:staffId,p_display_name:name,p_birth_date:dob,p_year:2026,p_editable_until:iso});
-      if(error)throw new Error(error.message);
-      success++;
+      parsedRows.push({row_number:i+1,staff_id:staffId,display_name:name,birth_date:dob,editable_until:iso});
     }catch(err){errors.push(`${i+1}行目: ${err.message}`);}
+  }
+  if(parsedRows.length){
+    const {data,error}=await supabase.functions.invoke('staff-auth',{body:{action:'admin-bulk-register',year:2026,rows:parsedRows}});
+    if(error){errors.push(`一括登録処理: ${error.message}`);}
+    else if(!data?.ok){errors.push(`一括登録処理: ${data?.message||'登録に失敗しました。'}`);}
+    else{
+      success=Number(data.success||0);
+      for(const item of data.errors||[])errors.push(`${item.row_number}行目: ${item.message}`);
+    }
   }
   $('importCsv').disabled=false;
   await load();
