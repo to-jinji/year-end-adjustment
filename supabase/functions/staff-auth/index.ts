@@ -15,7 +15,7 @@ Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{head
    return json({ok:true,needs_password_setup:!data.password_set,verification_token:raw,login_email:data.password_set?`${staffId}.2026@staff.invalid`:null});
  }
  if(body.action==='set-password'){
-   const token=String(body.verification_token||'');const password=String(body.password||'');if(password.length<10)return json({ok:false,message:'パスワードは10文字以上で設定してください。'},400);const tokenHash=await hash(token);
+   const token=String(body.verification_token||'');const password=String(body.password||'');if(password.length<8)return json({ok:false,message:'パスワードは8文字以上で設定してください。'},400);const tokenHash=await hash(token);
    const {data:t}=await db.from('staff_verification_tokens').select('staff_assignment_id,expires_at,used_at').eq('token_hash',tokenHash).maybeSingle();if(!t||t.used_at||new Date(t.expires_at)<=new Date())return json({ok:false,message:'本人確認の有効期限が切れました。最初からやり直してください。'},401);
    const {data:a}=await db.from('staff_assignments').select('id,password_set,staff_members!inner(staff_id)').eq('id',t.staff_assignment_id).single();if(!a||a.password_set)return json({ok:false,message:'すでにパスワード設定済みです。'},409);const staffId=(a.staff_members as any).staff_id;const email=`${staffId}.2026@staff.invalid`;
    const {data:u,error:uerr}=await db.auth.admin.createUser({email,password,email_confirm:true,user_metadata:{kind:'staff',staff_id:staffId,year:2026}});if(uerr||!u.user)return json({ok:false,message:'アカウント作成に失敗しました。'},500);
