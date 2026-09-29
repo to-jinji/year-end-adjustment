@@ -54,6 +54,18 @@ let commonDeadline='';
 let currentAdjustmentId='';
 let staffRows=[];
 
+const correctionLabels={basic:'基本情報',income:'本人・所得情報',spouse_dependents:'配偶者・扶養',insurance:'保険料控除',previous_employment:'前職・源泉徴収票',housing_loan:'住宅ローン控除',documents:'必要書類',other:'その他'};
+async function loadCorrectionRequests(){
+  hide($('correctionNotificationError'));
+  const {data,error}=await supabase.from('staff_correction_requests')
+    .select('id,section_key,current_content,requested_content,requested_at,staff_assignments!inner(id,staff_members!inner(staff_id,display_name))')
+    .eq('status','pending').order('requested_at',{ascending:true});
+  if(error){show($('correctionNotificationError'),'修正依頼を取得できません。');$('correctionNotifications').classList.remove('hidden');return}
+  if(!data?.length){$('correctionNotifications').classList.add('hidden');$('correctionNotificationList').innerHTML='';return}
+  $('correctionNotifications').classList.remove('hidden');
+  $('correctionNotificationList').innerHTML=data.map(r=>{const sm=r.staff_assignments?.staff_members||{};return `<div class="subcard" style="margin-bottom:12px"><p style="margin-top:0"><strong>${escapeHtml(sm.staff_id||'')}・${escapeHtml(sm.display_name||'')} からの修正依頼があります</strong></p><p class="muted">${new Date(r.requested_at).toLocaleString('ja-JP')} / ${escapeHtml(correctionLabels[r.section_key]||r.section_key)}</p><dl class="summary-list"><div><dt>現在の内容</dt><dd>${escapeHtml(r.current_content)}</dd></div><div><dt>修正後の内容</dt><dd>${escapeHtml(r.requested_content)}</dd></div></dl><button type="button" class="btn approve-correction" data-request="${r.id}">修正を承認</button></div>`}).join('');
+}
+
 async function loadSettings(){
   const {data,error}=await supabase.from('year_settings').select('default_editable_until').eq('year',YEAR).single();
   if(error){show($('settingsError'),'共通編集期限を取得できません。');return;}
@@ -161,6 +173,7 @@ document.addEventListener('click',async e=>{const t=e.target;if(!(t instanceof H
   if(t.classList.contains('clear-deadline')){const id=t.dataset.assignment;const {data,error}=await supabase.functions.invoke('staff-auth',{body:{action:'admin-update-individual-deadline',assignment_id:id,editable_until:null}});if(error||!data?.ok)return alert(data?.message||error?.message||'変更に失敗しました。');await load()}
   if(t.classList.contains('reset-pw')){if(!confirm(`${t.dataset.name}さんのパスワードを再発行します。現在のパスワードは使用できなくなります。よろしいですか？`))return;t.disabled=true;const {data,error}=await supabase.functions.invoke('staff-auth',{body:{action:'admin-reset-password',assignment_id:t.dataset.assignment}});t.disabled=false;if(error||!data?.ok)return alert(data?.message||error?.message||'再発行に失敗しました。');$('passwordModalText').textContent=`${data.staff_id} ${data.display_name} さんの新しいパスワードです。`;$('temporaryPassword').textContent=data.temporary_password;$('passwordModal').classList.remove('hidden')}
   if(t.classList.contains('adjustment-btn'))await openAdjustment(t.dataset.assignment,t.dataset.staffId,t.dataset.name);
+  if(t.classList.contains('approve-correction')){if(!confirm('この修正依頼を承認し、スタッフ側の編集を再開します。よろしいですか？'))return;t.disabled=true;const {error}=await supabase.rpc('admin_approve_correction_request',{p_request_id:t.dataset.request});t.disabled=false;if(error)return alert(error.message);alert('修正依頼を承認しました。スタッフ側に承認のお知らせが表示されます。');await loadCorrectionRequests();await load()}
   if(t.classList.contains('delete-staff')){const label=`${t.dataset.staffId} ${t.dataset.name}`;if(!confirm(`${label} を削除します。\n年末調整の回答、添付書類、ログインアカウントも削除されます。\nこの操作は元に戻せません。よろしいですか？`))return;const typed=prompt(`確認のためスタッフID「${t.dataset.staffId}」を入力してください。`);if(typed!==t.dataset.staffId)return alert('スタッフIDが一致しないため削除を中止しました。');t.disabled=true;const {data,error}=await supabase.functions.invoke('staff-auth',{body:{action:'admin-delete-staff',assignment_id:t.dataset.assignment}});t.disabled=false;if(error||!data?.ok)return alert(data?.message||error?.message||'削除に失敗しました。');alert(`${label} を削除しました。`);await load()}
 });
 $('copyPassword').onclick=async()=>{try{await navigator.clipboard.writeText($('temporaryPassword').textContent);$('copyPassword').textContent='コピー済み';setTimeout(()=>$('copyPassword').textContent='コピー',1500)}catch{alert('コピーできませんでした。')}};
@@ -170,6 +183,7 @@ $('closePasswordModal').onclick=()=>{$('temporaryPassword').textContent='';$('pa
   if(!ok)return;
   await loadSettings();
   await load();
+  await loadCorrectionRequests();
 })().catch(err=>{
   console.error('admin init failed',err);
   const box=$('adminInitError');

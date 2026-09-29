@@ -13,6 +13,10 @@ if (error || !assignment) {
   $('message').style.display = 'block';
 } else {
   await renderAdminCorrectionNotice(assignment.id,null,document.querySelector('.card'));
+  const {data:corrections}=await supabase.from('staff_correction_requests').select('status,section_key,approved_at,requested_at').eq('staff_assignment_id',assignment.id).in('status',['pending','approved']).order('requested_at',{ascending:false});
+  const approved=(corrections||[]).filter(r=>r.status==='approved');const pending=(corrections||[]).filter(r=>r.status==='pending');
+  if(approved.length){$('correctionNotice').innerHTML='<div class="success" style="display:block"><strong>修正が承認されました。</strong><br>修正したい項目を編集し、「入力内容の確認・提出」から再提出してください。</div>'}
+  else if(pending.length){$('correctionNotice').innerHTML='<div class="notice"><strong>修正依頼を送信済みです。</strong><br>管理者の承認をお待ちください。</div>'}
   $('status').textContent = assignment.status;
   const deadline = assignment.editable_until_override || settings?.default_editable_until;
   $('deadline').textContent = formatDeadline(deadline);
@@ -22,13 +26,8 @@ if (error || !assignment) {
   ]);
   const done = new Set((progress || []).map(x => x.section_key));
   const map = {
-    basic: 'basicState',
-    income: 'incomeState',
-    spouse_dependents: 'spouseState',
-    insurance: 'insuranceState',
-    previous_employment: 'previousState',
-    housing_loan: 'housingState',
-    documents: 'documentsState'
+    basic: 'basicState', income: 'incomeState', spouse_dependents: 'spouseState', insurance: 'insuranceState',
+    previous_employment: 'previousState', housing_loan: 'housingState', documents: 'documentsState'
   };
   const documentsReady=(requiredDocs||[]).every(r=>r.complete);
   for (const [key, id] of Object.entries(map)) {
