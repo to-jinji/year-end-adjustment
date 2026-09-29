@@ -129,6 +129,48 @@ Deno.serve(async(req)=>{
    const result={year:2026,gross_salary:grossSalary,previous_salary:prevSalary,salary_income_before_adjustment:salaryIncomeForAdjustment,income_adjustment:incomeAdjustment,salary_income_after_adjustment:adjustedSalaryIncome,total_income_estimate:totalIncomeEstimate,basic_deduction:basic,social_insurance_deduction:socialTotal,small_business_mutual_aid_deduction:smallBusiness,life_insurance_deduction:lifeDeduction,earthquake_insurance_deduction:earthquake,spouse_deduction:spouseD,dependent_deduction:dependentDeduction,specific_relative_special_deduction:specialRelativeDeduction,disability_deduction:selfD+dependentDisability,widow_single_parent_deduction:widowD,working_student_deduction:studentD,total_deductions:totalDeductions,taxable_income:taxable,calculated_income_tax:calculatedTax,housing_loan_deduction:housingDeduction,annual_income_tax_before_reconstruction:annualIncomeTax,annual_tax:annualTax,withheld_tax_total:withheld,difference,settlement_type:difference>0?'還付':difference<0?'追加徴収':'過不足なし',settlement_amount:Math.abs(difference),dependent_details:depDetails,warnings,manual_review_required:manual};
    const {error:saveErr}=await db.from('staff_payroll_totals').update({adjustment_result:result,manual_review_required:manual,calculated_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('staff_assignment_id',assignmentId);if(saveErr)return json({ok:false,message:saveErr.message},500);return json({ok:true,result})
   }
+  if(body.action==='admin-edit-response'){
+   const auth=await requireAdmin();if(auth.error)return auth.error;
+   const assignmentId=String(body.assignment_id||'');const section=String(body.section||'');const mode=String(body.mode||'');const recordId=body.record_id?String(body.record_id):null;const d=(body.data&&typeof body.data==='object')?body.data:{} as any;
+   if(!assignmentId)return json({ok:false,message:'対象スタッフを確認できません。'},400);
+   const {data:assignment}=await db.from('staff_assignments').select('id').eq('id',assignmentId).maybeSingle();if(!assignment)return json({ok:false,message:'対象スタッフが見つかりません。'},404);
+   const now=new Date().toISOString();let changedFields=Object.keys(d);let error:any=null;
+   const cleanText=(v:any)=>String(v??'').trim();
+   if(section==='basic'&&mode==='save'){
+    const payload={staff_assignment_id:assignmentId,name_kana:cleanText(d.name_kana),postal_code:cleanText(d.postal_code),address:cleanText(d.address),household_head_name:cleanText(d.household_head_name),relationship_to_household_head:cleanText(d.relationship_to_household_head),updated_at:now};
+    if(!/^\d{7}$/.test(payload.postal_code)||!payload.name_kana||!payload.address||!payload.household_head_name||!payload.relationship_to_household_head)return json({ok:false,message:'基本情報の必須項目を確認してください。'},400);
+    ({error}=await db.from('staff_basic_info').upsert(payload,{onConflict:'staff_assignment_id'}));
+   }else if(section==='income'&&mode==='save'){
+    ({error}=await db.from('staff_income_info').upsert({staff_assignment_id:assignmentId,other_salary_income:Math.floor(n(d.other_salary_income)),other_income:Math.floor(n(d.other_income)),disability_category:cleanText(d.disability_category)||'なし',widow_single_parent:cleanText(d.widow_single_parent)||'なし',working_student:!!d.working_student,note:cleanText(d.note),updated_at:now},{onConflict:'staff_assignment_id'}));
+   }else if(section==='spouse_dependents'&&mode==='save-spouse'){
+    const has=!!d.has_spouse;const payload={staff_assignment_id:assignmentId,has_spouse:has,spouse_name:has?cleanText(d.spouse_name):'',spouse_name_kana:has?cleanText(d.spouse_name_kana):'',birth_date:has?(d.birth_date||null):null,estimated_income:has?Math.floor(n(d.estimated_income)):0,living_together:has?!!d.living_together:false,address:has?cleanText(d.address):'',nonresident:has?!!d.nonresident:false,updated_at:now};
+    if(has&&(!payload.spouse_name||!payload.birth_date))return json({ok:false,message:'配偶者の氏名と生年月日を確認してください。'},400);
+    ({error}=await db.from('staff_spouse_info').upsert(payload,{onConflict:'staff_assignment_id'}));
+   }else if(section==='spouse_dependents'&&mode==='save-dependent'){
+    const payload={staff_assignment_id:assignmentId,name:cleanText(d.name),name_kana:cleanText(d.name_kana),birth_date:d.birth_date||null,relationship:cleanText(d.relationship),estimated_income:Math.floor(n(d.estimated_income)),living_together:!!d.living_together,address:cleanText(d.address),nonresident:!!d.nonresident,disability_category:cleanText(d.disability_category)||'なし',updated_at:now};if(!payload.name||!payload.birth_date||!payload.relationship)return json({ok:false,message:'扶養親族の氏名・生年月日・続柄を確認してください。'},400);
+    if(recordId){const q=await db.from('staff_dependents').update(payload).eq('id',recordId).eq('staff_assignment_id',assignmentId);error=q.error}else{const q=await db.from('staff_dependents').insert(payload);error=q.error}
+   }else if(section==='spouse_dependents'&&mode==='delete-dependent'){
+    const q=await db.from('staff_dependents').delete().eq('id',recordId).eq('staff_assignment_id',assignmentId);error=q.error;changedFields=['削除'];
+   }else if(section==='insurance'&&mode==='save-insurance'){
+    const payload={staff_assignment_id:assignmentId,insurance_type:cleanText(d.insurance_type),company_name:cleanText(d.company_name),policyholder_name:cleanText(d.policyholder_name),beneficiary_name:cleanText(d.beneficiary_name),paid_amount:Math.floor(n(d.paid_amount)),note:cleanText(d.note),updated_at:now};if(!payload.insurance_type||!payload.company_name||!payload.policyholder_name)return json({ok:false,message:'保険料控除の種類・保険会社・契約者を確認してください。'},400);
+    if(recordId){const q=await db.from('staff_insurance_entries').update(payload).eq('id',recordId).eq('staff_assignment_id',assignmentId);error=q.error}else{const q=await db.from('staff_insurance_entries').insert(payload);error=q.error}
+   }else if(section==='insurance'&&mode==='delete-insurance'){
+    const q=await db.from('staff_insurance_entries').delete().eq('id',recordId).eq('staff_assignment_id',assignmentId);error=q.error;changedFields=['削除'];
+   }else if(section==='previous_employment'&&mode==='save-summary'){
+    ({error}=await db.from('staff_previous_employment_summary').upsert({staff_assignment_id:assignmentId,has_previous_employment:!!d.has_previous_employment,updated_at:now},{onConflict:'staff_assignment_id'}));
+   }else if(section==='previous_employment'&&mode==='save-previous'){
+    const payload={staff_assignment_id:assignmentId,employer_name:cleanText(d.employer_name),retirement_date:d.retirement_date||null,payment_amount:Math.floor(n(d.payment_amount)),withholding_tax:Math.floor(n(d.withholding_tax)),social_insurance:Math.floor(n(d.social_insurance)),note:cleanText(d.note),updated_at:now};if(!payload.employer_name)return json({ok:false,message:'前職の勤務先名を確認してください。'},400);
+    if(recordId){const q=await db.from('staff_previous_employments').update(payload).eq('id',recordId).eq('staff_assignment_id',assignmentId);error=q.error}else{const q=await db.from('staff_previous_employments').insert(payload);error=q.error}
+   }else if(section==='previous_employment'&&mode==='delete-previous'){
+    const q=await db.from('staff_previous_employments').delete().eq('id',recordId).eq('staff_assignment_id',assignmentId);error=q.error;changedFields=['削除'];
+   }else if(section==='housing_loan'&&mode==='save'){
+    const has=!!d.has_housing_loan;({error}=await db.from('staff_housing_loan_info').upsert({staff_assignment_id:assignmentId,has_housing_loan:has,first_year:has?!!d.first_year:false,move_in_date:has?(d.move_in_date||null):null,year_end_balance:has?Math.floor(n(d.year_end_balance)):0,joint_debt_ratio:has&&d.joint_debt_ratio!==null?Number(d.joint_debt_ratio):null,deduction_amount:has?Math.floor(n(d.deduction_amount)):0,note:has?cleanText(d.note):'',updated_at:now},{onConflict:'staff_assignment_id'}));
+   }else return json({ok:false,message:'修正対象を確認できません。'},400);
+   if(error)return json({ok:false,message:error.message},500);
+   const summary=cleanText(body.summary)||'入力内容を修正';
+   const {error:logErr}=await db.from('staff_admin_changes').insert({staff_assignment_id:assignmentId,admin_user_id:auth.user!.id,section_key:section,summary,changed_fields:changedFields});if(logErr)return json({ok:false,message:logErr.message},500);
+   return json({ok:true});
+  }
   if(body.action==='set-password'){
    const token=String(body.verification_token||'');const password=String(body.password||'');if(password.length<8)return json({ok:false,message:'パスワードは8文字以上で設定してください。'},400);const tokenHash=await hash(token);const {data:t}=await db.from('staff_verification_tokens').select('staff_assignment_id,expires_at,used_at').eq('token_hash',tokenHash).maybeSingle();if(!t||t.used_at||new Date(t.expires_at)<=new Date())return json({ok:false,message:'本人確認の有効期限が切れました。最初からやり直してください。'},401);const {data:a}=await db.from('staff_assignments').select('id,password_set,staff_members!inner(staff_id)').eq('id',t.staff_assignment_id).single();if(!a||a.password_set)return json({ok:false,message:'すでにパスワード設定済みです。'},409);const staffId=(a.staff_members as any).staff_id;const email=`${staffId}.2026@staff.invalid`;const {data:u,error:uerr}=await db.auth.admin.createUser({email,password,email_confirm:true,user_metadata:{kind:'staff',staff_id:staffId,year:2026}});if(uerr||!u.user)return json({ok:false,message:'アカウント作成に失敗しました。'},500);await db.from('staff_assignments').update({auth_user_id:u.user.id,password_set:true,status:'入力中',updated_at:new Date().toISOString()}).eq('id',a.id);await db.from('staff_verification_tokens').update({used_at:new Date().toISOString()}).eq('token_hash',tokenHash);return json({ok:true,login_email:email})
   }

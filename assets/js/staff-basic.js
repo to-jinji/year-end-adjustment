@@ -1,4 +1,4 @@
-import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout } from './staff-common.js';
+import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, saveAndReturn } from './staff-common.js';
 
 let ctx;
 try { ctx = await requireStaffContext(); } catch { show($('pageError'),'対象データを取得できません。'); $('basicForm').classList.add('hidden'); throw new Error('assignment not found'); }
@@ -54,9 +54,12 @@ $('basicForm').onsubmit = async e => {
     updated_at: new Date().toISOString()
   };
   if ([payload.name_kana,payload.address,payload.household_head_name,payload.relationship_to_household_head].some(v => !v)) return show($('pageError'),'未入力の項目があります。');
-  const { error } = await supabase.from('staff_basic_info').upsert(payload,{onConflict:'staff_assignment_id'});
-  if (error) return show($('pageError'),error.message);
-  try { await markSectionComplete(assignment.id,'basic'); } catch (err) { return show($('pageError'),err.message); }
-  show($('pageSuccess'),'基本情報を保存しました。');
+  try {
+    await saveAndReturn($('saveBasic'), async()=>{
+      const { error } = await supabase.from('staff_basic_info').upsert(payload,{onConflict:'staff_assignment_id'});
+      if (error) throw error;
+      await markSectionComplete(assignment.id,'basic');
+    });
+  } catch (err) { show($('pageError'),err.message); }
 };
 bindLogout();

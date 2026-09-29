@@ -7,6 +7,37 @@ export const $ = id => document.getElementById(id);
 export const show = (el, msg) => { if (!el) return; el.textContent = msg; el.style.display = 'block'; };
 export const hide = el => { if (!el) return; el.style.display = 'none'; el.textContent = ''; };
 
+const sectionByPath = () => {
+  const name = location.pathname.split('/').pop() || 'index.html';
+  return ({
+    'basic.html':'basic',
+    'income.html':'income',
+    'spouse.html':'spouse_dependents',
+    'insurance.html':'insurance',
+    'previous.html':'previous_employment',
+    'housing.html':'housing_loan'
+  })[name] || null;
+};
+const sectionLabels = {
+  basic:'基本情報', income:'本人・所得情報', spouse_dependents:'配偶者・扶養',
+  insurance:'保険料控除', previous_employment:'前職・源泉徴収票', housing_loan:'住宅ローン控除'
+};
+
+export async function renderAdminCorrectionNotice(assignmentId, sectionKey = null, container = null) {
+  let q = supabase.from('staff_admin_changes').select('section_key,summary,created_at').eq('staff_assignment_id', assignmentId).order('created_at',{ascending:false}).limit(sectionKey ? 5 : 10);
+  if (sectionKey) q = q.eq('section_key', sectionKey);
+  const { data, error } = await q;
+  if (error || !data?.length) return;
+  const host = container || document.querySelector('.card');
+  if (!host) return;
+  const box = document.createElement('div');
+  box.className = 'admin-change-notice';
+  box.innerHTML = `<strong>管理者による修正があります</strong><ul>${data.map(r=>`<li><span>${sectionLabels[r.section_key]||r.section_key}</span>：${escapeHtml(r.summary)} <small>${new Date(r.created_at).toLocaleString('ja-JP')}</small></li>`).join('')}</ul>`;
+  host.insertBefore(box, host.firstChild);
+}
+
+function escapeHtml(v=''){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
 export async function requireStaffContext() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
@@ -22,6 +53,7 @@ export async function requireStaffContext() {
   if (error || !assignment) throw new Error('assignment not found');
   const deadline = assignment.editable_until_override || settings?.default_editable_until || null;
   const canEdit = !!deadline && new Date() <= new Date(deadline) && ['入力中','修正依頼'].includes(assignment.status);
+  await renderAdminCorrectionNotice(assignment.id, sectionByPath());
   return { user, assignment, deadline, canEdit };
 }
 
@@ -41,6 +73,24 @@ export async function markSectionComplete(staffAssignmentId, sectionKey) {
     completed_at: new Date().toISOString()
   }, { onConflict: 'staff_assignment_id,section_key' });
   if (error) throw error;
+}
+
+export async function markSectionIncomplete(staffAssignmentId, sectionKey) {
+  const { error } = await supabase.from('staff_section_progress').delete().eq('staff_assignment_id',staffAssignmentId).eq('section_key',sectionKey);
+  if (error) throw error;
+}
+
+export async function saveAndReturn(button, task, savingText='保存中…') {
+  const original = button?.textContent || '';
+  if (button) { button.disabled = true; button.textContent = savingText; }
+  try {
+    await task();
+    if (button) button.textContent = '保存完了';
+    setTimeout(()=>{ location.href='./index.html'; }, 450);
+  } catch (e) {
+    if (button) { button.disabled = false; button.textContent = original; }
+    throw e;
+  }
 }
 
 export function bindLogout() {

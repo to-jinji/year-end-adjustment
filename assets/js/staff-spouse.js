@@ -1,4 +1,4 @@
-import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, yen } from './staff-common.js';
+import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, yen, saveAndReturn } from './staff-common.js';
 let ctx;
 try { ctx = await requireStaffContext(); } catch { show($('pageError'),'対象データを取得できません。'); throw new Error('assignment not found'); }
 const { assignment, deadline, canEdit } = ctx;
@@ -51,8 +51,7 @@ $('saveSpouse').onclick=async()=>{
   const has=$('hasSpouse').value==='yes';
   const payload={staff_assignment_id:assignment.id,has_spouse:has,spouse_name:has?$('spouseName').value.trim():'',spouse_name_kana:has?$('spouseKana').value.trim():'',birth_date:has?($('spouseBirth').value||null):null,estimated_income:has?Number($('spouseIncome').value||0):0,living_together:has?$('spouseLiving').checked:false,address:has?$('spouseAddress').value.trim():'',nonresident:has?$('spouseNonresident').checked:false,updated_at:new Date().toISOString()};
   if(has&&(!payload.spouse_name||!payload.birth_date))return show($('pageError'),'配偶者の氏名と生年月日を入力してください。');
-  const {error}=await supabase.from('staff_spouse_info').upsert(payload,{onConflict:'staff_assignment_id'});if(error)return show($('pageError'),error.message);
-  try{await markSectionComplete(assignment.id,'spouse_dependents');}catch(err){return show($('pageError'),err.message);}show($('pageSuccess'),'配偶者・扶養情報を保存しました。');
+  try{await saveAndReturn($('saveSpouse'),async()=>{const {error}=await supabase.from('staff_spouse_info').upsert(payload,{onConflict:'staff_assignment_id'});if(error)throw error;await markSectionComplete(assignment.id,'spouse_dependents');});}catch(err){show($('pageError'),err.message);}
 };
 if(!canEdit){lockForm($('spouseForm'));lockForm($('addDependentForm'));$('saveSpouse').disabled=true;$('lockedMessage').classList.remove('hidden');}
 bindLogout();
