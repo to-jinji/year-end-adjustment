@@ -6,7 +6,7 @@ try {
   if (!user) location.href = './login.html';
 
   const [{ data: assignment, error }, { data: settings }] = await Promise.all([
-    supabase.from('staff_assignments').select('id,status,editable_until_override').eq('auth_user_id', user.id).eq('year', YEAR).single(),
+    supabase.from('staff_assignments').select('id,status,editable_until_override,submitted_at,post_submit_editing').eq('auth_user_id', user.id).eq('year', YEAR).single(),
     supabase.from('year_settings').select('default_editable_until').eq('year', YEAR).single()
   ]);
 
@@ -15,7 +15,12 @@ try {
     $('message').style.display = 'block';
   } else {
     await renderAdminCorrectionNotice(assignment.id,null,document.querySelector('.card'));
-    $('status').textContent = assignment.status;
+    const submitted=['提出済み','確認中'].includes(assignment.status);
+    const editing=submitted && assignment.post_submit_editing === true;
+    $('status').textContent = editing ? '修正中' : assignment.status;
+    $('status').classList.toggle('status-submitted', submitted && !editing);
+    $('status').classList.toggle('status-editing', editing);
+
     const deadline = assignment.editable_until_override || settings?.default_editable_until;
     $('deadline').textContent = formatDeadline(deadline);
     const expired=!!deadline && new Date()>new Date(deadline);
@@ -39,11 +44,20 @@ try {
     }
     if(!documentsReady)$('documentsState').textContent='必須書類あり';
     const allDone = Object.keys(map).every(k => k==='documents' ? done.has(k)&&documentsReady : done.has(k));
-    const submitted=['提出済み','確認中'].includes(assignment.status);
+
+    const sectionLinks=[...document.querySelectorAll('[data-section-link]')];
+    const sectionEditable=!expired && (!submitted || editing);
+    for(const link of sectionLinks){
+      link.classList.toggle('disabled-link', !sectionEditable);
+      link.setAttribute('aria-disabled', sectionEditable ? 'false' : 'true');
+      link.style.pointerEvents=sectionEditable?'auto':'none';
+      link.tabIndex=sectionEditable?0:-1;
+    }
+
     const reviewLink = $('reviewLink');
     if(submitted){
-      $('reviewLabel').textContent='入力内容の確認';
-      $('reviewState').textContent='確認できます';
+      $('reviewLabel').textContent=editing?'入力内容の確認・再提出':'入力内容の確認';
+      $('reviewState').textContent=editing?'再提出できます':'確認できます';
     }else{
       $('reviewLabel').textContent='入力内容の確認・提出';
       $('reviewState').textContent = allDone ? '確認・提出へ' : '未完了あり';

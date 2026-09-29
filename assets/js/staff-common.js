@@ -46,13 +46,17 @@ export async function requireStaffContext() {
   }
   const [{ data: assignment, error }, { data: settings }] = await Promise.all([
     supabase.from('staff_assignments')
-      .select('id,status,editable_until_override,staff_members!inner(display_name,birth_date)')
+      .select('id,status,editable_until_override,submitted_at,post_submit_editing,staff_members!inner(display_name,birth_date)')
       .eq('auth_user_id', user.id).eq('year', YEAR).single(),
     supabase.from('year_settings').select('default_editable_until').eq('year', YEAR).single()
   ]);
   if (error || !assignment) throw new Error('assignment not found');
   const deadline = assignment.editable_until_override || settings?.default_editable_until || null;
-  const canEdit = !!deadline && new Date() <= new Date(deadline) && ['入力中','提出済み','確認中','修正依頼'].includes(assignment.status);
+  const withinDeadline = !!deadline && new Date() <= new Date(deadline);
+  const canEdit = withinDeadline && (
+    ['入力中','修正依頼'].includes(assignment.status) ||
+    (['提出済み','確認中'].includes(assignment.status) && assignment.post_submit_editing === true)
+  );
   await renderAdminCorrectionNotice(assignment.id, sectionByPath());
   if (deadline && new Date() > new Date(deadline)) {
     const host=document.querySelector('.card');
@@ -62,11 +66,16 @@ export async function requireStaffContext() {
       host.insertBefore(box,host.firstChild);
     }
   }
-  return { user, assignment, deadline, canEdit };
+  return { user, assignment, deadline, canEdit, withinDeadline };
 }
 
 export function formatDeadline(deadline) {
   return deadline ? `編集期限：${new Date(deadline).toLocaleString('ja-JP')}` : '編集期限：未設定';
+}
+
+export function formatDateTime(value) {
+  if (!value) return '';
+  return new Date(value).toLocaleString('ja-JP', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
 }
 
 export function lockForm(form) {
