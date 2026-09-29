@@ -1,0 +1,9 @@
+import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout } from './staff-common.js';
+let ctx;try{ctx=await requireStaffContext();}catch{show($('pageError'),'対象データを取得できません。');throw new Error('assignment not found');}
+const {assignment,deadline,canEdit}=ctx;$('deadline').textContent=formatDeadline(deadline);
+function toggle(){ $('housingFields').classList.toggle('hidden',$('hasHousingLoan').value!=='yes'); }
+$('hasHousingLoan').onchange=toggle;
+const {data:info}=await supabase.from('staff_housing_loan_info').select('*').eq('staff_assignment_id',assignment.id).maybeSingle();
+if(info){$('hasHousingLoan').value=info.has_housing_loan?'yes':'no';$('firstYear').checked=!!info.first_year;$('moveInDate').value=info.move_in_date||'';$('yearEndBalance').value=info.year_end_balance||0;$('jointDebtRatio').value=info.joint_debt_ratio??'';$('housingNote').value=info.note||'';}toggle();
+$('housingForm').onsubmit=async e=>{e.preventDefault();hide($('pageError'));hide($('pageSuccess'));if(!canEdit)return show($('pageError'),'現在は編集できません。');const has=$('hasHousingLoan').value==='yes';const payload={staff_assignment_id:assignment.id,has_housing_loan:has,first_year:has?$('firstYear').checked:false,move_in_date:has?($('moveInDate').value||null):null,year_end_balance:has?Number($('yearEndBalance').value||0):0,joint_debt_ratio:has&&$('jointDebtRatio').value!==''?Number($('jointDebtRatio').value):null,note:has?$('housingNote').value.trim():'',updated_at:new Date().toISOString()};const{error}=await supabase.from('staff_housing_loan_info').upsert(payload,{onConflict:'staff_assignment_id'});if(error)return show($('pageError'),error.message);try{await markSectionComplete(assignment.id,'housing_loan');show($('pageSuccess'),'住宅ローン控除情報を保存しました。');}catch(err){show($('pageError'),err.message);}};
+if(!canEdit){lockForm($('housingForm'));$('lockedMessage').classList.remove('hidden');}bindLogout();
