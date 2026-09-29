@@ -85,6 +85,12 @@ Deno.serve(async(req)=>{
    await db.from('staff_auth_limits').delete().eq('staff_id',(a.staff_members as any).staff_id);
    return json({ok:true,staff_id:(a.staff_members as any).staff_id,display_name:(a.staff_members as any).display_name})
   }
+  if(body.action==='admin-bulk-payroll'){
+   const auth=await requireAdmin();if(auth.error)return auth.error;const year=Number(body.year||0);const rows=Array.isArray(body.rows)?body.rows:[];if(year!==2026||!rows.length)return json({ok:false,message:'登録データがありません。'},400);if(rows.length>500)return json({ok:false,message:'CSVは1回500件まで登録できます。'},400);
+   let success=0;const errors=[] as Array<{row_number:number,message:string}>;
+   for(const r of rows){const rowNumber=Number(r?.row_number||0);const staffId=String(r?.staff_id||'').trim();try{if(!/^\d{4}$/.test(staffId))throw new Error('スタッフIDは4桁で入力してください。');const {data:a,error:aErr}=await db.from('staff_assignments').select('id,staff_members!inner(staff_id)').eq('year',year).eq('staff_members.staff_id',staffId).maybeSingle();if(aErr)throw new Error(aErr.message);if(!a)throw new Error('登録済みスタッフが見つかりません。');const payload={staff_assignment_id:a.id,taxable_salary_total:Math.floor(n(r.taxable_salary_total)),social_insurance_total:Math.floor(n(r.social_insurance_total)),withheld_income_tax_total:Math.floor(n(r.withheld_income_tax_total)),adjustment_result:null,manual_review_required:false,calculated_at:null,updated_at:new Date().toISOString()};const {error}=await db.from('staff_payroll_totals').upsert(payload,{onConflict:'staff_assignment_id'});if(error)throw new Error(error.message);success++;}catch(e){errors.push({row_number:rowNumber,message:e instanceof Error?e.message:'登録に失敗しました。'})}}
+   return json({ok:true,success,errors})
+  }
   if(body.action==='admin-save-payroll'){
    const auth=await requireAdmin();if(auth.error)return auth.error;const assignmentId=String(body.assignment_id||'');if(!assignmentId)return json({ok:false,message:'対象スタッフを確認できません。'},400);
    const payload={staff_assignment_id:assignmentId,taxable_salary_total:Math.floor(n(body.taxable_salary_total)),social_insurance_total:Math.floor(n(body.social_insurance_total)),withheld_income_tax_total:Math.floor(n(body.withheld_income_tax_total)),updated_at:new Date().toISOString()};
