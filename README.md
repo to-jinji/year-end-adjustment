@@ -1,29 +1,21 @@
-# 年末調整サイト v0.5.2 変更ファイル
+# 年末調整サイト v0.5.3 変更内容
 
-## 追加
-- 管理画面から2026年の給与情報をCSVで一括登録できるようにしました。
-- スタッフID（4桁）で既存スタッフに紐づけます。
-- CSVひな形を管理画面からダウンロードできます。
-- 既に給与情報があるスタッフはCSVの値で上書きします。
-- CSVで給与情報を更新した場合、以前の年末調整計算結果はクリアされるため、必要に応じて再計算してください。
+## 変更内容
+- 管理画面のスタッフ一覧に選択チェックボックスを追加。
+- 「選択したスタッフをまとめて計算」を追加。
+- 全選択チェックボックスを追加。
+- 一括計算中は「計算中… 3/10」のように進捗を表示。
+- 一括計算終了後に成功件数を表示し、失敗したスタッフだけ個別にエラー表示。
+- 個別の「給与・計算」は従来どおり利用可能。
 
-## CSV列
-`staff_id,taxable_salary_total,social_insurance_total,withheld_income_tax_total`
+## 反映方法
+今回変更したファイルだけをGitHubへ同じ階層で上書きしてください。
 
-例:
-```csv
-staff_id,taxable_salary_total,social_insurance_total,withheld_income_tax_total
-"0001","3500000","520000","85000"
-```
+- `admin/index.html`
+- `assets/js/admin.js`
 
-- `staff_id`: 4桁
-- `taxable_salary_total`: 2026年のTO株式会社における課税支給額合計（円）
-- `social_insurance_total`: 2026年のTO株式会社における社会保険料合計（円）
-- `withheld_income_tax_total`: 2026年のTO株式会社における所得税合計（円）
-- 金額は0以上の整数。CSV内で `"3,500,000"` のようにカンマ付きで記載しても読み取れます。
-- 1回500件まで登録できます。
+SQL migrationとEdge Functionの再デプロイは不要です。
 
-## 反映手順
-1. `assets/js/admin.js` と `admin/index.html` をGitHubへ上書き。
-2. `supabase/functions/staff-auth/index.ts` をEdge Function `staff-auth` に上書きして再デプロイ。
-3. SQL migrationは不要です。
+## 補足
+一括計算は、すでに登録済みの給与情報とスタッフ回答を使って年末調整を計算します。
+給与情報が未登録などで計算できないスタッフが含まれている場合でも、他の選択スタッフの処理は継続し、最後に失敗対象を表示します。
