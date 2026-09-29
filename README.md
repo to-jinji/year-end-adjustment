@@ -1,17 +1,13 @@
-# 年末調整サイト v0.6.2 修正ファイル
+# v0.6.3
 
 ## 修正内容
-- 管理画面の認証初期化待ちでボタン操作が無効になる問題を修正
-- 管理者認証の各確認処理にタイムアウトを追加
-- 認証初期化失敗時もログアウト操作を必ず利用可能に変更
-- フォールバックログアウト時はログイン画面で残存セッションを破棄
-- 認証初期化エラーを管理画面上に表示
-
-## 変更ファイル
-- `admin/index.html`
-- `assets/js/admin.js`
-- `assets/js/admin-login.js`
+- MFA認証後にSupabaseセッションを明示的にrefreshし、AAL2 JWTをRLS/PostgRESTへ確実に反映。
+- 管理画面初期化時にもセッションをrefreshしてから管理者判定・スタッフ一覧取得を実行。
+- AAL2なのにスタッフ一覧が0件の場合、一度だけセッションをrefreshして再取得。
 
 ## 反映
-SQL migration / Edge Function再デプロイは不要です。
-GitHubへ上記3ファイルを同じ階層で上書きしてください。
+GitHubへ以下2ファイルを上書きしてください。
+- assets/js/admin-login.js
+- assets/js/admin.js
+
+SQL migration、Edge Function再デプロイは不要です。

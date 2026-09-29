@@ -14,8 +14,12 @@ let adminReady=false;
 
 async function ensureAdminAuth(){
   try{
-    const {data:{session}}=await withTimeout(supabase.auth.getSession(),8000,'ログイン状態の確認がタイムアウトしました。');
+    let {data:{session}}=await withTimeout(supabase.auth.getSession(),8000,'ログイン状態の確認がタイムアウトしました。');
     if(!session){location.replace('./login.html');return false}
+    // MFA完了後のAAL2 JWTをPostgREST/RLSでも確実に使うためセッションを更新する。
+    const {data:refreshed,error:refreshError}=await withTimeout(supabase.auth.refreshSession(),10000,'セッション更新がタイムアウトしました。');
+    if(refreshError)throw refreshError;
+    session=refreshed?.session||session;
     const {data:aal,error:aalError}=await withTimeout(supabase.auth.mfa.getAuthenticatorAssuranceLevel(),8000,'2段階認証状態の確認がタイムアウトしました。');
     if(aalError)throw aalError;
     if(aal?.currentLevel!=='aal2'){location.replace('./login.html');return false}
@@ -96,7 +100,19 @@ function applyListControls(){
 }
 
 async function load(){
-  const {data,error}=await supabase.from('staff_assignments').select('id,status,password_set,editable_until_override,staff_members!inner(staff_id,display_name),staff_payroll_totals(calculated_at)').eq('year',YEAR);
+  let {data,error}=await supabase.from('staff_assignments').select('id,status,password_set,editable_until_override,staff_members!inner(staff_id,display_name),staff_payroll_totals(calculated_at)').eq('year',YEAR);
+  if(error){show($('bulkAdjustmentError'),'スタッフ一覧を取得できません。再ログインしてお試しください。');return;}
+  // RLSは権限不足時に0件を返すことがあるため、AAL2なのに0件なら一度だけJWTを更新して再取得する。
+  if((data||[]).length===0){
+    try{
+      const {data:aal}=await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if(aal?.currentLevel==='aal2'){
+        await supabase.auth.refreshSession();
+        const retry=await supabase.from('staff_assignments').select('id,status,password_set,editable_until_override,staff_members!inner(staff_id,display_name),staff_payroll_totals(calculated_at)').eq('year',YEAR);
+        data=retry.data;error=retry.error;
+      }
+    }catch{}
+  }
   if(error){show($('bulkAdjustmentError'),'スタッフ一覧を取得できません。再ログインしてお試しください。');return;}
   staffRows=data||[];
   const current=$('statusFilter').value;const statuses=[...new Set(staffRows.map(r=>r.status).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'ja'));

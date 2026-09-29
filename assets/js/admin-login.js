@@ -57,6 +57,9 @@ async function challengeAndVerify(code){
   if(challengeError)throw challengeError;
   const {error:verifyError}=await supabase.auth.mfa.verify({factorId:activeFactorId,challengeId:challenge.id,code});
   if(verifyError)throw verifyError;
+  // MFA直後は古いAAL1トークンが残る場合があるため、明示的にセッションを更新する。
+  const {error:refreshError}=await supabase.auth.refreshSession();
+  if(refreshError)throw refreshError;
   const status=await adminStatus();
   if(!status.mfa_verified)throw new Error('2段階認証を確認できませんでした。もう一度お試しください。');
   location.href='./index.html';
