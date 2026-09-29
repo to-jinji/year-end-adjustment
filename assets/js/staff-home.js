@@ -36,6 +36,13 @@ if (error || !assignment) {
   }
   if(!documentsReady)$('documentsState').textContent='必須書類あり';
   const allDone = Object.keys(map).every(k => k==='documents' ? done.has(k)&&documentsReady : done.has(k));
-  $('reviewState').textContent = allDone ? '確認できます' : '未完了あり';
+  const reviewLink = $('reviewLink');
+  $('reviewState').textContent = allDone ? '確認・提出へ' : '未完了あり';
+  if (reviewLink) {
+    reviewLink.setAttribute('aria-disabled', allDone ? 'false' : 'true');
+    reviewLink.style.pointerEvents = allDone ? 'auto' : 'none';
+    reviewLink.style.opacity = allDone ? '1' : '.55';
+    reviewLink.tabIndex = allDone ? 0 : -1;
+  }
 }
 bindLogout();

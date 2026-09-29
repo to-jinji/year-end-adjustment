@@ -4,8 +4,11 @@ const {assignment,deadline,canEdit}=ctx;$('deadline').textContent=formatDeadline
 const sections=['basic','income','spouse_dependents','insurance','previous_employment','housing_loan','documents'];
 const [{data:progress},{data:requiredDocs}]=await Promise.all([supabase.from('staff_section_progress').select('section_key').eq('staff_assignment_id',assignment.id),supabase.rpc('staff_required_documents',{p_assignment_id:assignment.id})]);const done=new Set((progress||[]).map(x=>x.section_key));const documentsReady=(requiredDocs||[]).every(r=>r.complete);
 const labels={basic:'基本情報',income:'本人・所得情報',spouse_dependents:'配偶者・扶養',insurance:'保険料控除',previous_employment:'前職・源泉徴収票',housing_loan:'住宅ローン控除',documents:'必要書類',other:'その他'};
-$('sectionList').innerHTML=sections.map(k=>{const ok=k==='documents'?done.has(k)&&documentsReady:done.has(k);return `<li><span>${labels[k]}</span><strong class="${ok?'ok-text':'ng-text'}">${ok?'入力済':'未完了'}</strong></li>`}).join('');
 const allDone=sections.every(k=>k==='documents'?done.has(k)&&documentsReady:done.has(k));
+if (!allDone && !['提出済み','確認中','修正依頼'].includes(assignment.status)) {
+  location.replace('./index.html');
+  throw new Error('incomplete sections');
+}
 const [{data:basic},{data:income},{data:spouse},{count:deps},{count:insurance},{data:prevSummary},{count:previous},{data:housing},{count:documents}]=await Promise.all([
   supabase.from('staff_basic_info').select('name_kana,postal_code,address,household_head_name,relationship_to_household_head').eq('staff_assignment_id',assignment.id).maybeSingle(),
   supabase.from('staff_income_info').select('other_salary_income,other_income,disability_category,widow_single_parent,working_student').eq('staff_assignment_id',assignment.id).maybeSingle(),
