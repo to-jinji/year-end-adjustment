@@ -2,22 +2,43 @@ import {supabase} from './supabase.js';
 const YEAR=2026;
 const $=id=>document.getElementById(id);
 
-// 認証状態に問題がある場合でもログアウトだけは必ず操作できるよう、最初にイベントを登録する。
-$('logout').onclick=async()=>{try{await supabase.auth.signOut()}finally{location.replace('./login.html')}};
-
-const redirectToLogin=(signOut=false)=>{
-  if(signOut)supabase.auth.signOut().finally(()=>location.replace('./login.html'));
-  else location.replace('./login.html');
-  throw new Error('redirecting to admin login');
+// ログアウトは最優先で有効化する。認証初期化が失敗してもこのボタンは動作する。
+$('logout').onclick=async()=>{
+  try{await supabase.auth.signOut()}catch{}
+  location.replace('./login.html?force=1');
 };
 
-const {data:{session}}=await supabase.auth.getSession();
-if(!session)redirectToLogin(false);
-const {data:aal,error:aalError}=await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-if(aalError||aal?.currentLevel!=='aal2')redirectToLogin(false);
-const {data:authStatus,error:authStatusError}=await supabase.functions.invoke('staff-auth',{body:{action:'admin-auth-status'}});
-if(authStatusError||!authStatus?.ok)redirectToLogin(true);
-if(!authStatus.mfa_verified)redirectToLogin(false);
+const delayReject=(ms,message)=>new Promise((_,reject)=>setTimeout(()=>reject(new Error(message)),ms));
+const withTimeout=(promise,ms=10000,message='認証確認がタイムアウトしました。')=>Promise.race([promise,delayReject(ms,message)]);
+let adminReady=false;
+
+async function ensureAdminAuth(){
+  try{
+    const {data:{session}}=await withTimeout(supabase.auth.getSession(),8000,'ログイン状態の確認がタイムアウトしました。');
+    if(!session){location.replace('./login.html');return false}
+    const {data:aal,error:aalError}=await withTimeout(supabase.auth.mfa.getAuthenticatorAssuranceLevel(),8000,'2段階認証状態の確認がタイムアウトしました。');
+    if(aalError)throw aalError;
+    if(aal?.currentLevel!=='aal2'){location.replace('./login.html');return false}
+    const {data:authStatus,error:authStatusError}=await withTimeout(
+      supabase.functions.invoke('staff-auth',{body:{action:'admin-auth-status'}}),
+      10000,
+      '管理者権限の確認がタイムアウトしました。'
+    );
+    if(authStatusError||!authStatus?.ok){
+      try{await supabase.auth.signOut()}catch{}
+      location.replace('./login.html?force=1');
+      return false;
+    }
+    if(!authStatus.mfa_verified){location.replace('./login.html');return false}
+    adminReady=true;
+    return true;
+  }catch(err){
+    console.error('admin auth init failed',err);
+    const box=$('adminInitError');
+    if(box){box.textContent='管理者認証の確認に失敗しました。再ログインしてください。';box.style.display='block'}
+    return false;
+  }
+}
 
 const show=(el,msg)=>{el.textContent=msg;el.style.display='block'};
 const hide=el=>{el.style.display='none';el.textContent=''};
@@ -130,4 +151,13 @@ document.addEventListener('click',async e=>{const t=e.target;if(!(t instanceof H
 });
 $('copyPassword').onclick=async()=>{try{await navigator.clipboard.writeText($('temporaryPassword').textContent);$('copyPassword').textContent='コピー済み';setTimeout(()=>$('copyPassword').textContent='コピー',1500)}catch{alert('コピーできませんでした。')}};
 $('closePasswordModal').onclick=()=>{$('temporaryPassword').textContent='';$('passwordModal').classList.add('hidden')};
-await loadSettings();await load();
+(async()=>{
+  const ok=await ensureAdminAuth();
+  if(!ok)return;
+  await loadSettings();
+  await load();
+})().catch(err=>{
+  console.error('admin init failed',err);
+  const box=$('adminInitError');
+  if(box){box.textContent='管理画面の初期化に失敗しました。ページを再読み込みするか、ログアウトして再度ログインしてください。';box.style.display='block'}
+});

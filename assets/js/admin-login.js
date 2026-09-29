@@ -6,6 +6,12 @@ const enrollPanel=document.getElementById('mfaEnroll');
 const challengePanel=document.getElementById('mfaChallenge');
 let activeFactorId='';
 
+// 管理画面のフォールバックログアウトから来た場合は、残っているセッションを必ず破棄する。
+if(new URLSearchParams(location.search).get('force')==='1'){
+  try{await supabase.auth.signOut()}catch{}
+  history.replaceState(null,'',location.pathname);
+}
+
 const show=(el,msg)=>{el.textContent=msg;el.style.display='block'};
 const hide=el=>{el.textContent='';el.style.display='none'};
 const codeOk=v=>/^\d{6}$/.test(String(v||'').trim());
