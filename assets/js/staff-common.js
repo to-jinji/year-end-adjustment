@@ -52,8 +52,16 @@ export async function requireStaffContext() {
   ]);
   if (error || !assignment) throw new Error('assignment not found');
   const deadline = assignment.editable_until_override || settings?.default_editable_until || null;
-  const canEdit = !!deadline && new Date() <= new Date(deadline) && ['入力中','修正依頼'].includes(assignment.status);
+  const canEdit = !!deadline && new Date() <= new Date(deadline) && ['入力中','提出済み','確認中','修正依頼'].includes(assignment.status);
   await renderAdminCorrectionNotice(assignment.id, sectionByPath());
+  if (deadline && new Date() > new Date(deadline)) {
+    const host=document.querySelector('.card');
+    if(host && !document.getElementById('deadlineExpiredNotice')){
+      const box=document.createElement('div');box.id='deadlineExpiredNotice';box.className='notice';
+      box.innerHTML='<strong>編集期限を過ぎています。</strong><br>修正が必要な場合は、修正内容を <a href="mailto:jinji@to-job.com">jinji@to-job.com</a> へメールで送信してください。';
+      host.insertBefore(box,host.firstChild);
+    }
+  }
   return { user, assignment, deadline, canEdit };
 }
 

@@ -1,48 +1,62 @@
 import { supabase, YEAR, $, bindLogout, formatDeadline, renderAdminCorrectionNotice } from './staff-common.js';
 
-const { data: { user } } = await supabase.auth.getUser();
-if (!user) location.href = './login.html';
-
-const [{ data: assignment, error }, { data: settings }] = await Promise.all([
-  supabase.from('staff_assignments').select('id,status,editable_until_override').eq('auth_user_id', user.id).eq('year', YEAR).single(),
-  supabase.from('year_settings').select('default_editable_until').eq('year', YEAR).single()
-]);
-
-if (error || !assignment) {
-  $('message').textContent = '対象データを取得できません。';
-  $('message').style.display = 'block';
-} else {
-  await renderAdminCorrectionNotice(assignment.id,null,document.querySelector('.card'));
-  const {data:corrections}=await supabase.from('staff_correction_requests').select('status,section_key,approved_at,requested_at').eq('staff_assignment_id',assignment.id).in('status',['pending','approved']).order('requested_at',{ascending:false});
-  const approved=(corrections||[]).filter(r=>r.status==='approved');const pending=(corrections||[]).filter(r=>r.status==='pending');
-  if(approved.length){$('correctionNotice').innerHTML='<div class="success" style="display:block"><strong>修正が承認されました。</strong><br>修正したい項目を編集し、「入力内容の確認・提出」から再提出してください。</div>'}
-  else if(pending.length){$('correctionNotice').innerHTML='<div class="notice"><strong>修正依頼を送信済みです。</strong><br>管理者の承認をお待ちください。</div>'}
-  $('status').textContent = assignment.status;
-  const deadline = assignment.editable_until_override || settings?.default_editable_until;
-  $('deadline').textContent = formatDeadline(deadline);
-  const [{ data: progress }, { data: requiredDocs }] = await Promise.all([
-    supabase.from('staff_section_progress').select('section_key').eq('staff_assignment_id', assignment.id),
-    supabase.rpc('staff_required_documents',{p_assignment_id:assignment.id})
-  ]);
-  const done = new Set((progress || []).map(x => x.section_key));
-  const map = {
-    basic: 'basicState', income: 'incomeState', spouse_dependents: 'spouseState', insurance: 'insuranceState',
-    previous_employment: 'previousState', housing_loan: 'housingState', documents: 'documentsState'
-  };
-  const documentsReady=(requiredDocs||[]).every(r=>r.complete);
-  for (const [key, id] of Object.entries(map)) {
-    const ok=key==='documents' ? done.has(key)&&documentsReady : done.has(key);
-    $(id).textContent = ok ? '入力済' : '未入力';
-  }
-  if(!documentsReady)$('documentsState').textContent='必須書類あり';
-  const allDone = Object.keys(map).every(k => k==='documents' ? done.has(k)&&documentsReady : done.has(k));
-  const reviewLink = $('reviewLink');
-  $('reviewState').textContent = allDone ? '確認・提出へ' : '未完了あり';
-  if (reviewLink) {
-    reviewLink.setAttribute('aria-disabled', allDone ? 'false' : 'true');
-    reviewLink.style.pointerEvents = allDone ? 'auto' : 'none';
-    reviewLink.style.opacity = allDone ? '1' : '.55';
-    reviewLink.tabIndex = allDone ? 0 : -1;
-  }
-}
 bindLogout();
+try {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) location.href = './login.html';
+
+  const [{ data: assignment, error }, { data: settings }] = await Promise.all([
+    supabase.from('staff_assignments').select('id,status,editable_until_override').eq('auth_user_id', user.id).eq('year', YEAR).single(),
+    supabase.from('year_settings').select('default_editable_until').eq('year', YEAR).single()
+  ]);
+
+  if (error || !assignment) {
+    $('message').textContent = '対象データを取得できません。';
+    $('message').style.display = 'block';
+  } else {
+    await renderAdminCorrectionNotice(assignment.id,null,document.querySelector('.card'));
+    $('status').textContent = assignment.status;
+    const deadline = assignment.editable_until_override || settings?.default_editable_until;
+    $('deadline').textContent = formatDeadline(deadline);
+    const expired=!!deadline && new Date()>new Date(deadline);
+    if(expired){
+      $('deadlineNotice').innerHTML='<div class="notice"><strong>編集期限を過ぎています。</strong><br>修正が必要な場合は、修正内容を <a href="mailto:jinji@to-job.com">jinji@to-job.com</a> へメールで送信してください。</div>';
+    }
+
+    const [{ data: progress }, { data: requiredDocs }] = await Promise.all([
+      supabase.from('staff_section_progress').select('section_key').eq('staff_assignment_id', assignment.id),
+      supabase.rpc('staff_required_documents',{p_assignment_id:assignment.id})
+    ]);
+    const done = new Set((progress || []).map(x => x.section_key));
+    const map = {
+      basic: 'basicState', income: 'incomeState', spouse_dependents: 'spouseState', insurance: 'insuranceState',
+      previous_employment: 'previousState', housing_loan: 'housingState', documents: 'documentsState'
+    };
+    const documentsReady=(requiredDocs||[]).every(r=>r.complete);
+    for (const [key, id] of Object.entries(map)) {
+      const ok=key==='documents' ? done.has(key)&&documentsReady : done.has(key);
+      $(id).textContent = ok ? '入力済' : '未入力';
+    }
+    if(!documentsReady)$('documentsState').textContent='必須書類あり';
+    const allDone = Object.keys(map).every(k => k==='documents' ? done.has(k)&&documentsReady : done.has(k));
+    const submitted=['提出済み','確認中'].includes(assignment.status);
+    const reviewLink = $('reviewLink');
+    if(submitted){
+      $('reviewLabel').textContent='入力内容の確認';
+      $('reviewState').textContent='確認できます';
+    }else{
+      $('reviewLabel').textContent='入力内容の確認・提出';
+      $('reviewState').textContent = allDone ? '確認・提出へ' : '未完了あり';
+    }
+    const canOpen=submitted||allDone;
+    if (reviewLink) {
+      reviewLink.setAttribute('aria-disabled', canOpen ? 'false' : 'true');
+      reviewLink.style.pointerEvents = canOpen ? 'auto' : 'none';
+      reviewLink.style.opacity = canOpen ? '1' : '.55';
+      reviewLink.tabIndex = canOpen ? 0 : -1;
+    }
+  }
+} finally {
+  document.body.classList.remove('page-loading');
+  const loading=$('pageLoading');if(loading)loading.remove();
+}
