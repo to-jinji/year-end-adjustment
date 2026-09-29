@@ -10,7 +10,6 @@ bindYenInput($('paidAmount'));
 
 const body = $('insuranceBody');
 const applicableFields = $('insuranceApplicableFields');
-const notApplicable = $('insuranceNotApplicable');
 let currentEntries = [];
 
 function esc(v='') { return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -18,7 +17,6 @@ function esc(v='') { return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&
 function toggleInsurance() {
   const v = $('hasInsurance').value;
   applicableFields.classList.toggle('hidden', v !== 'yes');
-  notApplicable.classList.toggle('hidden', v !== 'no');
 }
 $('hasInsurance').onchange = toggleInsurance;
 
