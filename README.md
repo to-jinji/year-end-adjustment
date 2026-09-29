@@ -1,13 +1,12 @@
-# v0.6.3
+# 年末調整サイト v0.6.4 修正
 
 ## 修正内容
-- MFA認証後にSupabaseセッションを明示的にrefreshし、AAL2 JWTをRLS/PostgRESTへ確実に反映。
-- 管理画面初期化時にもセッションをrefreshしてから管理者判定・スタッフ一覧取得を実行。
-- AAL2なのにスタッフ一覧が0件の場合、一度だけセッションをrefreshして再取得。
+- 管理画面の `assets/js/admin.js` にあった構文エラーを修正。
+- 構文エラーによりスタッフ一覧が表示されず、スタッフ登録・CSV登録・一括計算などのボタンが反応しない問題を修正。
+- MFA / RLS / 既存スタッフデータには変更なし。
 
-## 反映
-GitHubへ以下2ファイルを上書きしてください。
-- assets/js/admin-login.js
-- assets/js/admin.js
+## 反映方法
+GitHubの `assets/js/admin.js` をこのZIP内のファイルで上書きしてください。
+SQL実行、Edge Function再デプロイは不要です。
 
-SQL migration、Edge Function再デプロイは不要です。
+反映後、管理画面で Ctrl + Shift + R による強制再読み込みを行ってください。
