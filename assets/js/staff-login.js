@@ -22,13 +22,17 @@ verifyForm.addEventListener('submit',async(e)=>{
   document.getElementById('passwordHint').classList.toggle('hidden',!needsSetup);
 });
 
-document.getElementById('togglePassword').addEventListener('click',()=>{
-  const password=document.getElementById('password');
-  const confirm=document.getElementById('passwordConfirm');
-  const showPassword=password.type==='password';
-  password.type=showPassword?'text':'password';
-  confirm.type=showPassword?'text':'password';
-  document.getElementById('togglePassword').textContent=showPassword?'パスワードを隠す':'パスワードを表示する';
+document.querySelectorAll('[data-password-toggle]').forEach(button=>{
+  button.addEventListener('click',()=>{
+    const input=document.getElementById(button.dataset.passwordToggle);
+    if(!input)return;
+    const showPassword=input.type==='password';
+    input.type=showPassword?'text':'password';
+    button.classList.toggle('is-visible',showPassword);
+    const label=showPassword?'パスワードを隠す':'パスワードを表示';
+    button.setAttribute('aria-label',label);
+    button.setAttribute('title',label);
+  });
 });
 
 document.getElementById('passwordForm').addEventListener('submit',async(e)=>{
