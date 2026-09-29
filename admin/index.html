@@ -10,6 +10,16 @@
 <div id="csvRegister" class="hidden"><h2>CSV一括登録</h2><p class="muted">CSV列は <strong>staff_id, display_name, birth_date</strong> の3列です。生年月日は YYYY-MM-DD で入力してください。編集期限は共通期限が自動適用されます。</p><p class="muted">ExcelでスタッフIDの先頭の0が消えないよう、ID列は文字列として扱ってください。</p><div class="row"><button id="downloadTemplate" type="button" class="btn secondary">CSVひな形をダウンロード</button></div><div class="field"><label>CSVファイル</label><input id="csvFile" type="file" accept=".csv,text/csv"></div><div id="csvError" class="error"></div><div id="csvSuccess" class="success"></div><button id="importCsv" type="button" class="btn">CSVを登録</button></div>
 <div id="payrollCsvRegister" class="hidden"><h2>給与情報CSV一括登録</h2><p class="muted">スタッフIDで2026年の給与情報を紐づけて一括登録します。</p><p class="muted">CSV列は <strong>staff_id, taxable_salary_total, social_insurance_total, withheld_income_tax_total</strong> の4列です。金額は円単位で入力してください。</p><div class="row"><button id="downloadPayrollTemplate" type="button" class="btn secondary">給与CSVひな形をダウンロード</button></div><div class="field"><label>給与情報CSVファイル</label><input id="payrollCsvFile" type="file" accept=".csv,text/csv"></div><div id="payrollCsvError" class="error"></div><div id="payrollCsvSuccess" class="success"></div><button id="importPayrollCsv" type="button" class="btn">給与情報CSVを登録</button></div>
 <h2>スタッフ一覧</h2>
+<div class="subcard">
+  <div class="field-grid">
+    <div class="field"><label for="staffSearch">検索</label><input id="staffSearch" type="search" placeholder="スタッフID・氏名"></div>
+    <div class="field"><label for="statusFilter">状態</label><select id="statusFilter"><option value="">すべて</option></select></div>
+    <div class="field"><label for="passwordFilter">PW設定</label><select id="passwordFilter"><option value="">すべて</option><option value="set">設定済み</option><option value="unset">未設定</option></select></div>
+    <div class="field"><label for="adjustmentFilter">年末調整</label><select id="adjustmentFilter"><option value="">すべて</option><option value="calculated">計算済み</option><option value="uncalculated">未計算</option></select></div>
+    <div class="field"><label for="staffSort">並び替え</label><select id="staffSort"><option value="id_asc">スタッフID 昇順</option><option value="id_desc">スタッフID 降順</option><option value="name_asc">氏名 昇順</option><option value="name_desc">氏名 降順</option><option value="status_asc">状態順</option><option value="deadline_asc">編集期限が早い順</option><option value="deadline_desc">編集期限が遅い順</option><option value="calculated_first">計算済みを先頭</option></select></div>
+  </div>
+  <button id="resetStaffFilters" type="button" class="btn secondary tiny">条件をリセット</button>
+</div>
 <div class="row" style="align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
   <button id="calculateSelected" type="button" class="btn">選択したスタッフをまとめて計算</button>
   <span id="selectedCount" class="muted">0名選択中</span>

@@ -1,13 +1,24 @@
 import {supabase} from './supabase.js';
 const YEAR=2026;
-const {data:{user}}=await supabase.auth.getUser();
-if(!user)location.href='./login.html';
-const {data:aal}=await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-if(aal?.currentLevel!=='aal2')location.href='./login.html';
-const {data:admin,error:adminError}=await supabase.from('admin_users').select('auth_user_id').eq('auth_user_id',user.id).maybeSingle();
-if(adminError||!admin){await supabase.auth.signOut();location.href='./login.html'}
-
 const $=id=>document.getElementById(id);
+
+// 認証状態に問題がある場合でもログアウトだけは必ず操作できるよう、最初にイベントを登録する。
+$('logout').onclick=async()=>{try{await supabase.auth.signOut()}finally{location.replace('./login.html')}};
+
+const redirectToLogin=(signOut=false)=>{
+  if(signOut)supabase.auth.signOut().finally(()=>location.replace('./login.html'));
+  else location.replace('./login.html');
+  throw new Error('redirecting to admin login');
+};
+
+const {data:{session}}=await supabase.auth.getSession();
+if(!session)redirectToLogin(false);
+const {data:aal,error:aalError}=await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+if(aalError||aal?.currentLevel!=='aal2')redirectToLogin(false);
+const {data:authStatus,error:authStatusError}=await supabase.functions.invoke('staff-auth',{body:{action:'admin-auth-status'}});
+if(authStatusError||!authStatus?.ok)redirectToLogin(true);
+if(!authStatus.mfa_verified)redirectToLogin(false);
+
 const show=(el,msg)=>{el.textContent=msg;el.style.display='block'};
 const hide=el=>{el.style.display='none';el.textContent=''};
 const escapeHtml=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -16,6 +27,7 @@ const localToIso=v=>{const d=new Date(v);if(Number.isNaN(d.getTime()))throw new 
 const yen=v=>Number(v||0).toLocaleString('ja-JP');
 let commonDeadline='';
 let currentAdjustmentId='';
+let staffRows=[];
 
 async function loadSettings(){
   const {data,error}=await supabase.from('year_settings').select('default_editable_until').eq('year',YEAR).single();
@@ -23,15 +35,53 @@ async function loadSettings(){
   commonDeadline=data.default_editable_until;$('commonDeadline').value=toLocalInput(commonDeadline);
 }
 
-async function load(){
-  const {data,error}=await supabase.from('staff_assignments').select('id,status,password_set,editable_until_override,staff_members!inner(staff_id,display_name)').eq('year',YEAR).order('created_at');
-  if(error)return;
-  $('rows').innerHTML=data.map(r=>{
-    const effective=r.editable_until_override||commonDeadline;const deadline=effective?new Date(effective).toLocaleString('ja-JP'):'未設定';const overrideBadge=r.editable_until_override?'<span class="mini-badge">個別</span>':'';
+const payrollOf=r=>Array.isArray(r.staff_payroll_totals)?r.staff_payroll_totals[0]:r.staff_payroll_totals;
+const effectiveDeadline=r=>r.editable_until_override||commonDeadline||'';
+function renderRows(rows){
+  $('rows').innerHTML=rows.map(r=>{
+    const effective=effectiveDeadline(r);const deadline=effective?new Date(effective).toLocaleString('ja-JP'):'未設定';const overrideBadge=r.editable_until_override?'<span class="mini-badge">個別</span>':'';
     const pwBtn=r.password_set?`<button class="btn tiny reset-pw" data-assignment="${r.id}" data-name="${escapeHtml(r.staff_members.display_name)}">PW再発行</button>`:'<span class="muted">初回設定前</span>';
-    return `<tr><td><input class="adjustment-select" type="checkbox" data-assignment="${r.id}" data-staff-id="${escapeHtml(r.staff_members.staff_id)}" data-name="${escapeHtml(r.staff_members.display_name)}" aria-label="${escapeHtml(r.staff_members.display_name)}を選択"></td><td>${escapeHtml(r.staff_members.staff_id)}</td><td>${escapeHtml(r.staff_members.display_name)}</td><td>${escapeHtml(r.status)}</td><td>${r.password_set?'設定済':'未設定'}</td><td><div>${deadline} ${overrideBadge}</div><div class="deadline-actions"><input class="deadline-input" data-assignment="${r.id}" type="datetime-local" value="${r.editable_until_override?toLocalInput(r.editable_until_override):''}" aria-label="個別編集期限"><button class="btn secondary tiny save-deadline" data-assignment="${r.id}">個別設定</button>${r.editable_until_override?`<button class="btn link-btn tiny clear-deadline" data-assignment="${r.id}">共通に戻す</button>`:''}</div></td><td><button class="btn tiny adjustment-btn" data-assignment="${r.id}" data-staff-id="${escapeHtml(r.staff_members.staff_id)}" data-name="${escapeHtml(r.staff_members.display_name)}">給与・計算</button></td><td><div class="action-stack">${pwBtn}<a class="btn secondary tiny" href="./staff-edit.html?id=${r.id}">回答修正</a><button class="btn danger tiny delete-staff" data-assignment="${r.id}" data-staff-id="${escapeHtml(r.staff_members.staff_id)}" data-name="${escapeHtml(r.staff_members.display_name)}">削除</button></div></td></tr>`;
+    const calculated=!!payrollOf(r)?.calculated_at;const calcBadge=calculated?'<div class="mini-badge" style="margin-bottom:6px">計算済み</div>':'<div class="muted" style="font-size:12px;margin-bottom:6px">未計算</div>';
+    return `<tr><td><input class="adjustment-select" type="checkbox" data-assignment="${r.id}" data-staff-id="${escapeHtml(r.staff_members.staff_id)}" data-name="${escapeHtml(r.staff_members.display_name)}" aria-label="${escapeHtml(r.staff_members.display_name)}を選択"></td><td>${escapeHtml(r.staff_members.staff_id)}</td><td>${escapeHtml(r.staff_members.display_name)}</td><td>${escapeHtml(r.status)}</td><td>${r.password_set?'設定済':'未設定'}</td><td><div>${deadline} ${overrideBadge}</div><div class="deadline-actions"><input class="deadline-input" data-assignment="${r.id}" type="datetime-local" value="${r.editable_until_override?toLocalInput(r.editable_until_override):''}" aria-label="個別編集期限"><button class="btn secondary tiny save-deadline" data-assignment="${r.id}">個別設定</button>${r.editable_until_override?`<button class="btn link-btn tiny clear-deadline" data-assignment="${r.id}">共通に戻す</button>`:''}</div></td><td>${calcBadge}<button class="btn tiny adjustment-btn" data-assignment="${r.id}" data-staff-id="${escapeHtml(r.staff_members.staff_id)}" data-name="${escapeHtml(r.staff_members.display_name)}">給与・計算</button></td><td><div class="action-stack">${pwBtn}<a class="btn secondary tiny" href="./staff-edit.html?id=${r.id}">回答修正</a><button class="btn danger tiny delete-staff" data-assignment="${r.id}" data-staff-id="${escapeHtml(r.staff_members.staff_id)}" data-name="${escapeHtml(r.staff_members.display_name)}">削除</button></div></td></tr>`;
   }).join('');
+  if(!rows.length)$('rows').innerHTML='<tr><td colspan="8" class="muted">条件に一致するスタッフはいません。</td></tr>';
   updateSelectionCount();
+}
+
+function applyListControls(){
+  document.querySelectorAll('.adjustment-select').forEach(cb=>cb.checked=false);
+  const q=($('staffSearch').value||'').trim().toLowerCase();
+  const status=$('statusFilter').value;const pw=$('passwordFilter').value;const adj=$('adjustmentFilter').value;
+  let rows=staffRows.filter(r=>{
+    const sid=String(r.staff_members.staff_id||'').toLowerCase();const name=String(r.staff_members.display_name||'').toLowerCase();
+    if(q&&!sid.includes(q)&&!name.includes(q))return false;
+    if(status&&r.status!==status)return false;
+    if(pw==='set'&&!r.password_set)return false;if(pw==='unset'&&r.password_set)return false;
+    const calculated=!!payrollOf(r)?.calculated_at;if(adj==='calculated'&&!calculated)return false;if(adj==='uncalculated'&&calculated)return false;
+    return true;
+  });
+  const sort=$('staffSort').value;const deadlineValue=r=>{const v=effectiveDeadline(r);const t=v?new Date(v).getTime():Number.MAX_SAFE_INTEGER;return Number.isNaN(t)?Number.MAX_SAFE_INTEGER:t};
+  rows.sort((a,b)=>{
+    if(sort==='id_desc')return String(b.staff_members.staff_id).localeCompare(String(a.staff_members.staff_id),'ja',{numeric:true});
+    if(sort==='name_asc')return String(a.staff_members.display_name).localeCompare(String(b.staff_members.display_name),'ja');
+    if(sort==='name_desc')return String(b.staff_members.display_name).localeCompare(String(a.staff_members.display_name),'ja');
+    if(sort==='status_asc')return String(a.status).localeCompare(String(b.status),'ja')||String(a.staff_members.staff_id).localeCompare(String(b.staff_members.staff_id),'ja',{numeric:true});
+    if(sort==='deadline_asc')return deadlineValue(a)-deadlineValue(b);
+    if(sort==='deadline_desc')return deadlineValue(b)-deadlineValue(a);
+    if(sort==='calculated_first')return Number(!!payrollOf(b)?.calculated_at)-Number(!!payrollOf(a)?.calculated_at)||String(a.staff_members.staff_id).localeCompare(String(b.staff_members.staff_id),'ja',{numeric:true});
+    return String(a.staff_members.staff_id).localeCompare(String(b.staff_members.staff_id),'ja',{numeric:true});
+  });
+  renderRows(rows);
+}
+
+async function load(){
+  const {data,error}=await supabase.from('staff_assignments').select('id,status,password_set,editable_until_override,staff_members!inner(staff_id,display_name),staff_payroll_totals(calculated_at)').eq('year',YEAR);
+  if(error){show($('bulkAdjustmentError'),'スタッフ一覧を取得できません。再ログインしてお試しください。');return;}
+  staffRows=data||[];
+  const current=$('statusFilter').value;const statuses=[...new Set(staffRows.map(r=>r.status).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'ja'));
+  $('statusFilter').innerHTML='<option value="">すべて</option>'+statuses.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  if(statuses.includes(current))$('statusFilter').value=current;
+  applyListControls();
 }
 
 function selectedAdjustmentRows(){return [...document.querySelectorAll('.adjustment-select:checked')].map(el=>({assignment_id:el.dataset.assignment,staff_id:el.dataset.staffId,name:el.dataset.name}))}
@@ -51,6 +101,13 @@ const parseYenCsv=v=>{const raw=String(v??'').trim().replace(/,/g,'');if(raw==='
 $('downloadPayrollTemplate').onclick=()=>{const csv='staff_id,taxable_salary_total,social_insurance_total,withheld_income_tax_total\r\n"0001","3500000","520000","85000"\r\n';const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='payroll_import_template_2026.csv';a.click();URL.revokeObjectURL(a.href)};
 $('importPayrollCsv').onclick=async()=>{hide($('payrollCsvError'));hide($('payrollCsvSuccess'));const file=$('payrollCsvFile').files[0];if(!file)return show($('payrollCsvError'),'CSVファイルを選択してください。');const rows=parseCsv(await file.text());if(rows.length<2)return show($('payrollCsvError'),'登録するデータがありません。');const header=rows[0].map(v=>v.trim().toLowerCase());const required=['staff_id','taxable_salary_total','social_insurance_total','withheld_income_tax_total'];if(required.some((h,i)=>header[i]!==h)||header.length!==4)return show($('payrollCsvError'),'1行目は staff_id,taxable_salary_total,social_insurance_total,withheld_income_tax_total の4列にしてください。');const errors=[];const parsedRows=[];$('importPayrollCsv').disabled=true;for(let i=1;i<rows.length;i++){const [staffId='',salary='',social='',tax='']=rows[i].map(v=>v.trim());try{if(!/^\d{4}$/.test(staffId))throw new Error('スタッフIDは4桁で入力してください');parsedRows.push({row_number:i+1,staff_id:staffId,taxable_salary_total:parseYenCsv(salary),social_insurance_total:parseYenCsv(social),withheld_income_tax_total:parseYenCsv(tax)})}catch(err){errors.push(`${i+1}行目: ${err.message}`)}}let success=0;if(parsedRows.length){const {data,error}=await supabase.functions.invoke('staff-auth',{body:{action:'admin-bulk-payroll',year:YEAR,rows:parsedRows}});if(error)errors.push(`一括登録処理: ${error.message}`);else if(!data?.ok)errors.push(`一括登録処理: ${data?.message||'登録に失敗しました。'}`);else{success=Number(data.success||0);for(const item of data.errors||[])errors.push(`${item.row_number}行目: ${item.message}`)}}$('importPayrollCsv').disabled=false;if(success)show($('payrollCsvSuccess'),`${success}件の給与情報を登録しました。`);if(errors.length)show($('payrollCsvError'),`登録できなかった行があります。\n${errors.join('\n')}`)};
 
+
+$('staffSearch').oninput=applyListControls;
+$('statusFilter').onchange=applyListControls;
+$('passwordFilter').onchange=applyListControls;
+$('adjustmentFilter').onchange=applyListControls;
+$('staffSort').onchange=applyListControls;
+$('resetStaffFilters').onclick=()=>{$('staffSearch').value='';$('statusFilter').value='';$('passwordFilter').value='';$('adjustmentFilter').value='';$('staffSort').value='id_asc';applyListControls()};
 
 $('selectAllAdjustments').onchange=e=>{document.querySelectorAll('.adjustment-select').forEach(cb=>cb.checked=e.target.checked);updateSelectionCount()};
 $('calculateSelected').onclick=async()=>{hide($('bulkAdjustmentError'));const rows=selectedAdjustmentRows();if(!rows.length)return show($('bulkAdjustmentError'),'計算するスタッフを選択してください。');if(!confirm(`選択した${rows.length}名の年末調整をまとめて計算します。よろしいですか？`))return;const btn=$('calculateSelected');btn.disabled=true;const status=$('bulkAdjustmentStatus');status.classList.remove('hidden');const errors=[];let success=0;for(let i=0;i<rows.length;i++){const row=rows[i];status.textContent=`計算中… ${i+1}/${rows.length}（${row.staff_id} ${row.name}）`;const {data,error}=await supabase.functions.invoke('staff-auth',{body:{action:'admin-calculate-adjustment',assignment_id:row.assignment_id}});if(error||!data?.ok){errors.push(`${row.staff_id} ${row.name}: ${data?.message||error?.message||'計算に失敗しました。'}`)}else success++}status.textContent=`一括計算が完了しました。成功 ${success}名 / ${rows.length}名`;btn.disabled=false;if(errors.length)show($('bulkAdjustmentError'),`計算できなかったスタッフがあります。
@@ -73,5 +130,4 @@ document.addEventListener('click',async e=>{const t=e.target;if(!(t instanceof H
 });
 $('copyPassword').onclick=async()=>{try{await navigator.clipboard.writeText($('temporaryPassword').textContent);$('copyPassword').textContent='コピー済み';setTimeout(()=>$('copyPassword').textContent='コピー',1500)}catch{alert('コピーできませんでした。')}};
 $('closePasswordModal').onclick=()=>{$('temporaryPassword').textContent='';$('passwordModal').classList.add('hidden')};
-$('logout').onclick=async()=>{await supabase.auth.signOut();location.href='./login.html'};
 await loadSettings();await load();
