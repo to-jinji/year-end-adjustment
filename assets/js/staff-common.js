@@ -103,3 +103,35 @@ export function yen(value) {
   const n = Number(value || 0);
   return Number.isFinite(n) ? n.toLocaleString('ja-JP') : '0';
 }
+
+export function parseYenInput(value) {
+  const raw = String(value ?? '').replace(/[\s,，￥¥]/g, '').replace(/[^0-9]/g, '');
+  if (!raw) return 0;
+  const n = Number(raw);
+  return Number.isFinite(n) ? Math.max(0, Math.trunc(n)) : 0;
+}
+
+export function formatYenInputValue(value) {
+  if (value === null || value === undefined || value === '') return '';
+  const n = Number(String(value).replace(/,/g, ''));
+  if (!Number.isFinite(n) || n <= 0) return '';
+  return Math.trunc(n).toLocaleString('ja-JP');
+}
+
+export function setYenInput(input, value) {
+  if (!input) return;
+  input.value = formatYenInputValue(value);
+}
+
+export function bindYenInput(input) {
+  if (!input) return;
+  input.setAttribute('inputmode', 'numeric');
+  input.setAttribute('autocomplete', 'off');
+  const format = () => {
+    const digits = String(input.value || '').replace(/[^0-9]/g, '');
+    input.value = digits ? Number(digits).toLocaleString('ja-JP') : '';
+  };
+  input.addEventListener('input', format);
+  input.addEventListener('blur', format);
+  format();
+}
