@@ -2,8 +2,10 @@ import {supabase} from './supabase.js';
 const YEAR=2026;
 const {data:{user}}=await supabase.auth.getUser();
 if(!user)location.href='./login.html';
-const {data:admin}=await supabase.from('admin_users').select('auth_user_id').eq('auth_user_id',user.id).maybeSingle();
-if(!admin){await supabase.auth.signOut();location.href='./login.html'}
+const {data:aal}=await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+if(aal?.currentLevel!=='aal2')location.href='./login.html';
+const {data:admin,error:adminError}=await supabase.from('admin_users').select('auth_user_id').eq('auth_user_id',user.id).maybeSingle();
+if(adminError||!admin){await supabase.auth.signOut();location.href='./login.html'}
 
 const $=id=>document.getElementById(id);
 const show=(el,msg)=>{el.textContent=msg;el.style.display='block'};
