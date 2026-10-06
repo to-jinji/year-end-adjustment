@@ -1,6 +1,8 @@
 import { supabase, YEAR, $, bindLogout, formatDeadline, renderAdminCorrectionNotice } from './staff-common.js';
+import { APP_VERSION } from './version.js';
 
 bindLogout();
+const versionEl=$('appVersion');if(versionEl)versionEl.textContent=APP_VERSION;
 try {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) location.href = './login.html';
