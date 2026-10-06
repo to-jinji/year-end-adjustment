@@ -1,5 +1,5 @@
-import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, yen, saveAndReturn, bindYenInput, parseYenInput, runAddAction } from './staff-common.js';
-
+import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, yen, saveAndReturn, bindYenInput, parseYenInput, runAddAction, finishPageLoading } from './staff-common.js';
+try {
 let ctx;
 try { ctx = await requireStaffContext(); }
 catch { show($('pageError'),'対象データを取得できません。'); throw new Error('assignment not found'); }
@@ -98,3 +98,4 @@ if(!canEdit){
   $('lockedMessage').classList.remove('hidden');
 }
 bindLogout();
+} finally { finishPageLoading(); }

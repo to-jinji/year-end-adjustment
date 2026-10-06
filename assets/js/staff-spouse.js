@@ -1,4 +1,5 @@
-import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, yen, saveAndReturn, bindYenInput, setYenInput, parseYenInput, runAddAction } from './staff-common.js';
+import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, yen, saveAndReturn, bindYenInput, setYenInput, parseYenInput, runAddAction, finishPageLoading } from './staff-common.js';
+try {
 let ctx;
 try { ctx = await requireStaffContext(); } catch { show($('pageError'),'対象データを取得できません。'); throw new Error('assignment not found'); }
 const { assignment, deadline, canEdit } = ctx;
@@ -61,3 +62,4 @@ $('saveSpouse').onclick=async()=>{
 };
 if(!canEdit){lockForm($('spouseForm'));lockForm($('addDependentForm'));$('saveSpouse').disabled=true;$('lockedMessage').classList.remove('hidden');}
 bindLogout();
+} finally { finishPageLoading(); }

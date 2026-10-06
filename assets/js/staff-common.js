@@ -7,6 +7,12 @@ export const $ = id => document.getElementById(id);
 export const show = (el, msg) => { if (!el) return; el.textContent = msg; el.style.display = 'block'; };
 export const hide = el => { if (!el) return; el.style.display = 'none'; el.textContent = ''; };
 
+export function finishPageLoading() {
+  document.body.classList.remove('page-loading');
+  const loading = $('pageLoading');
+  if (loading) loading.remove();
+}
+
 const sectionByPath = () => {
   const name = location.pathname.split('/').pop() || 'index.html';
   return ({

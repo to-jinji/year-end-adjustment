@@ -1,5 +1,5 @@
-import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, saveAndReturn } from './staff-common.js';
-
+import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, saveAndReturn, finishPageLoading } from './staff-common.js';
+try {
 let ctx;
 try { ctx = await requireStaffContext(); } catch { show($('pageError'),'対象データを取得できません。'); $('basicForm').classList.add('hidden'); throw new Error('assignment not found'); }
 const { assignment, deadline, canEdit } = ctx;
@@ -63,3 +63,4 @@ $('basicForm').onsubmit = async e => {
   } catch (err) { show($('pageError'),err.message); }
 };
 bindLogout();
+} finally { finishPageLoading(); }

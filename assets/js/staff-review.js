@@ -1,4 +1,5 @@
-import { supabase, $, show, hide, requireStaffContext, formatDeadline, formatDateTime, bindLogout, yen } from './staff-common.js';
+import { supabase, $, show, hide, requireStaffContext, formatDeadline, formatDateTime, bindLogout, yen, finishPageLoading } from './staff-common.js';
+try {
 let ctx;try{ctx=await requireStaffContext();}catch{show($('pageError'),'対象データを取得できません。');throw new Error('assignment not found');}
 const {assignment,deadline,canEdit,withinDeadline}=ctx;
 $('deadline').textContent=formatDeadline(deadline);
@@ -72,3 +73,4 @@ $('submitBtn').onclick=async()=>{
   setTimeout(()=>location.href='./index.html',700);
 };
 bindLogout();
+} finally { finishPageLoading(); }

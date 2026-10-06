@@ -1,4 +1,5 @@
-import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, yen, saveAndReturn, bindYenInput, parseYenInput, runAddAction } from './staff-common.js';
+import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, yen, saveAndReturn, bindYenInput, parseYenInput, runAddAction, finishPageLoading } from './staff-common.js';
+try {
 let ctx;try{ctx=await requireStaffContext();}catch{show($('pageError'),'対象データを取得できません。');throw new Error('assignment not found');}
 const {assignment,deadline,canEdit}=ctx;$('deadline').textContent=formatDeadline(deadline);const body=$('previousBody');['paymentAmount','withholdingTax','socialInsurance'].forEach(id=>bindYenInput($(id)));
 function toggle(){ $('previousFields').classList.toggle('hidden',$('hasPrevious').value!=='yes'); }
@@ -11,3 +12,4 @@ $('previousEntryForm').onsubmit=async e=>{e.preventDefault();hide($('pageError')
 $('savePrevious').onclick=async()=>{hide($('pageError'));hide($('pageSuccess'));if(!canEdit)return show($('pageError'),'現在は編集できません。');const has=$('hasPrevious').value==='yes';if(has){const{count}=await supabase.from('staff_previous_employments').select('id',{count:'exact',head:true}).eq('staff_assignment_id',assignment.id);if(!count)return show($('pageError'),'前職ありの場合は、前職情報を1件以上登録してください。');}try{await saveAndReturn($('savePrevious'),async()=>{const{error}=await supabase.from('staff_previous_employment_summary').upsert({staff_assignment_id:assignment.id,has_previous_employment:has,updated_at:new Date().toISOString()},{onConflict:'staff_assignment_id'});if(error)throw error;await markSectionComplete(assignment.id,'previous_employment');});}catch(err){show($('pageError'),err.message);}};
 if(!canEdit){lockForm($('previousEntryForm'));$('hasPrevious').disabled=true;$('savePrevious').disabled=true;$('lockedMessage').classList.remove('hidden');}
 bindLogout();
+} finally { finishPageLoading(); }

@@ -1,7 +1,9 @@
-import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, saveAndReturn, bindYenInput, setYenInput, parseYenInput } from './staff-common.js';
+import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, saveAndReturn, bindYenInput, setYenInput, parseYenInput, finishPageLoading } from './staff-common.js';
+try {
 let ctx;try{ctx=await requireStaffContext();}catch{show($('pageError'),'対象データを取得できません。');throw new Error('assignment not found');}
 const {assignment,deadline,canEdit}=ctx;$('deadline').textContent=formatDeadline(deadline);bindYenInput($('otherSalaryIncome'));bindYenInput($('otherIncome'));
 const {data:info}=await supabase.from('staff_income_info').select('*').eq('staff_assignment_id',assignment.id).maybeSingle();
 if(info){setYenInput($('otherSalaryIncome'),info.other_salary_income);setYenInput($('otherIncome'),info.other_income);$('selfDisability').value=info.disability_category||'なし';$('widowSingleParent').value=info.widow_single_parent||'なし';$('workingStudent').checked=!!info.working_student;$('incomeNote').value=info.note||'';}
 $('incomeForm').onsubmit=async e=>{e.preventDefault();hide($('pageError'));hide($('pageSuccess'));if(!canEdit)return show($('pageError'),'現在は編集できません。');const payload={staff_assignment_id:assignment.id,other_salary_income:parseYenInput($('otherSalaryIncome').value),other_income:parseYenInput($('otherIncome').value),disability_category:$('selfDisability').value,widow_single_parent:$('widowSingleParent').value,working_student:$('workingStudent').checked,note:$('incomeNote').value.trim(),updated_at:new Date().toISOString()};try{await saveAndReturn(e.submitter||$('incomeForm').querySelector('button[type="submit"]'),async()=>{const{error}=await supabase.from('staff_income_info').upsert(payload,{onConflict:'staff_assignment_id'});if(error)throw error;await markSectionComplete(assignment.id,'income');});}catch(err){show($('pageError'),err.message);}};
 if(!canEdit){lockForm($('incomeForm'));$('lockedMessage').classList.remove('hidden');}bindLogout();
+} finally { finishPageLoading(); }
