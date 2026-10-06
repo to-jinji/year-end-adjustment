@@ -28,9 +28,15 @@ $('passwordChangeForm').addEventListener('submit',async e=>{
   try{
     const {data,error}=await supabase.functions.invoke(STAFF_AUTH_FUNCTION,{body:{action:'change-password',password}});
     if(error||!data?.ok)throw new Error(data?.message||error?.message||'パスワードを変更できませんでした。');
+    // 管理APIでパスワードを更新すると既存セッションが無効になることがあるため、
+    // 新しいパスワードで即時にサインインし直してからTOPへ遷移する。
+    const loginEmail=user.email;
+    if(!loginEmail)throw new Error('ログイン情報を確認できません。');
+    const {error:signInError}=await supabase.auth.signInWithPassword({email:loginEmail,password});
+    if(signInError)throw new Error('パスワードは変更されましたが、自動ログインに失敗しました。もう一度ログインしてください。');
     show($('passwordChangeSuccess'),'パスワードを変更しました。');
     $('newPassword').value='';$('newPasswordConfirm').value='';
-    setTimeout(()=>location.replace('./index.html'),800);
+    setTimeout(()=>location.replace('./index.html'),500);
   }catch(err){show($('passwordChangeError'),err instanceof Error?err.message:'パスワードを変更できませんでした。')}
   finally{btn.disabled=false;btn.textContent='パスワードを変更'}
 });
