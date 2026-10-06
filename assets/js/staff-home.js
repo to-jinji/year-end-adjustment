@@ -8,10 +8,11 @@ try {
   if (!user) location.href = './login.html';
 
   const [{ data: assignment, error }, { data: settings }] = await Promise.all([
-    supabase.from('staff_assignments').select('id,status,editable_until_override,submitted_at,post_submit_editing').eq('auth_user_id', user.id).eq('year', YEAR).single(),
+    supabase.from('staff_assignments').select('id,status,editable_until_override,submitted_at,post_submit_editing,password_change_required').eq('auth_user_id', user.id).eq('year', YEAR).single(),
     supabase.from('year_settings').select('default_editable_until').eq('year', YEAR).single()
   ]);
 
+  if (assignment?.password_change_required) { location.replace('./password.html?required=1'); }
   if (error || !assignment) {
     $('message').textContent = '対象データを取得できません。';
     $('message').style.display = 'block';

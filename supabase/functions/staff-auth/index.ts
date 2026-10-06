@@ -110,13 +110,39 @@ Deno.serve(async(req)=>{
     const {data:created,error:createError}=await db.auth.admin.createUser({email,password:temporaryPassword,email_confirm:true,user_metadata:{kind:'staff',staff_id:staffId,year:2026}});
     if(createError||!created.user)return json({ok:false,message:`パスワード再発行用アカウントを作成できませんでした。${createError?.message?` (${createError.message})`:''}`});
     authUserId=created.user.id;
-    const {error:linkError}=await db.from('staff_assignments').update({auth_user_id:authUserId,password_set:true,updated_at:new Date().toISOString()}).eq('id',a.id);
+    const {error:linkError}=await db.from('staff_assignments').update({auth_user_id:authUserId,password_set:true,password_change_required:true,updated_at:new Date().toISOString()}).eq('id',a.id);
     if(linkError)return json({ok:false,message:`再作成したアカウントをスタッフ情報へ紐づけできませんでした。 (${linkError.message})`});
    }else{
     const {error:updateError}=await db.auth.admin.updateUserById(authUserId,{password:temporaryPassword});
     if(updateError)return json({ok:false,message:`パスワードを再発行できませんでした。 (${updateError.message})`});
+    const {error:flagError}=await db.from('staff_assignments').update({password_change_required:true,updated_at:new Date().toISOString()}).eq('id',a.id);
+    if(flagError)return json({ok:false,message:`再発行後のパスワード変更フラグを設定できませんでした。 (${flagError.message})`});
    }
-   return json({ok:true,temporary_password:temporaryPassword,staff_id:staffId,display_name:displayName})
+   return json({ok:true,temporary_password:temporaryPassword,staff_id:staffId,display_name:displayName,password_change_required:true})
+  }
+  if(body.action==='staff-password-status'){
+   const authHeader=req.headers.get('Authorization')||'';const jwt=authHeader.startsWith('Bearer ')?authHeader.slice(7):'';
+   if(!jwt)return json({ok:false,message:'ログインし直してください。'},401);
+   const {data:userData,error:userError}=await db.auth.getUser(jwt);const user=userData?.user;
+   if(userError||!user)return json({ok:false,message:'ログイン状態を確認できません。'},401);
+   const {data:a,error}=await db.from('staff_assignments').select('id,password_change_required').eq('auth_user_id',user.id).eq('year',2026).maybeSingle();
+   if(error||!a)return json({ok:false,message:'スタッフ情報を確認できません。'},404);
+   return json({ok:true,password_change_required:!!a.password_change_required});
+  }
+  if(body.action==='change-password'){
+   const password=String(body.password||'');
+   if(!strongPassword(password))return json({ok:false,message:'パスワードは8文字以上で、英字と数字をそれぞれ1文字以上含めてください。'},400);
+   const authHeader=req.headers.get('Authorization')||'';const jwt=authHeader.startsWith('Bearer ')?authHeader.slice(7):'';
+   if(!jwt)return json({ok:false,message:'ログインし直してください。'},401);
+   const {data:userData,error:userError}=await db.auth.getUser(jwt);const user=userData?.user;
+   if(userError||!user)return json({ok:false,message:'ログイン状態を確認できません。'},401);
+   const {data:a,error:aErr}=await db.from('staff_assignments').select('id').eq('auth_user_id',user.id).eq('year',2026).maybeSingle();
+   if(aErr||!a)return json({ok:false,message:'スタッフ情報を確認できません。'},404);
+   const {error:updateError}=await db.auth.admin.updateUserById(user.id,{password});
+   if(updateError)return json({ok:false,message:'パスワードを変更できませんでした。'},500);
+   const {error:flagError}=await db.from('staff_assignments').update({password_change_required:false,updated_at:new Date().toISOString()}).eq('id',a.id);
+   if(flagError)return json({ok:false,message:'パスワード変更状態を更新できませんでした。'},500);
+   return json({ok:true});
   }
   if(body.action==='admin-delete-staff'){
    const auth=await requireAdmin();if(auth.error)return auth.error;const assignmentId=String(body.assignment_id||'');const {data:a,error}=await db.from('staff_assignments').select('id,staff_member_id,auth_user_id,staff_members!inner(staff_id,display_name)').eq('id',assignmentId).maybeSingle();if(error||!a)return json({ok:false,message:'対象スタッフが見つかりません。'},404);
@@ -220,7 +246,7 @@ Deno.serve(async(req)=>{
    return json({ok:true});
   }
   if(body.action==='set-password'){
-   const token=String(body.verification_token||'');const password=String(body.password||'');if(!strongPassword(password))return json({ok:false,message:'パスワードは8文字以上で、英字と数字をそれぞれ1文字以上含めてください。'},400);const tokenHash=await hash(token);const {data:t}=await db.from('staff_verification_tokens').select('staff_assignment_id,expires_at,used_at').eq('token_hash',tokenHash).maybeSingle();if(!t||t.used_at||new Date(t.expires_at)<=new Date())return json({ok:false,message:'本人確認の有効期限が切れました。最初からやり直してください。'},401);const {data:a}=await db.from('staff_assignments').select('id,password_set,staff_members!inner(staff_id)').eq('id',t.staff_assignment_id).single();if(!a||a.password_set)return json({ok:false,message:'すでにパスワード設定済みです。'},409);const staffId=(a.staff_members as any).staff_id;const email=`${staffId}.2026@staff.invalid`;const {data:u,error:uerr}=await db.auth.admin.createUser({email,password,email_confirm:true,user_metadata:{kind:'staff',staff_id:staffId,year:2026}});if(uerr||!u.user)return json({ok:false,message:'アカウント作成に失敗しました。'},500);await db.from('staff_assignments').update({auth_user_id:u.user.id,password_set:true,status:'入力中',updated_at:new Date().toISOString()}).eq('id',a.id);await db.from('staff_verification_tokens').update({used_at:new Date().toISOString()}).eq('token_hash',tokenHash);return json({ok:true,login_email:email})
+   const token=String(body.verification_token||'');const password=String(body.password||'');if(!strongPassword(password))return json({ok:false,message:'パスワードは8文字以上で、英字と数字をそれぞれ1文字以上含めてください。'},400);const tokenHash=await hash(token);const {data:t}=await db.from('staff_verification_tokens').select('staff_assignment_id,expires_at,used_at').eq('token_hash',tokenHash).maybeSingle();if(!t||t.used_at||new Date(t.expires_at)<=new Date())return json({ok:false,message:'本人確認の有効期限が切れました。最初からやり直してください。'},401);const {data:a}=await db.from('staff_assignments').select('id,password_set,staff_members!inner(staff_id)').eq('id',t.staff_assignment_id).single();if(!a||a.password_set)return json({ok:false,message:'すでにパスワード設定済みです。'},409);const staffId=(a.staff_members as any).staff_id;const email=`${staffId}.2026@staff.invalid`;const {data:u,error:uerr}=await db.auth.admin.createUser({email,password,email_confirm:true,user_metadata:{kind:'staff',staff_id:staffId,year:2026}});if(uerr||!u.user)return json({ok:false,message:'アカウント作成に失敗しました。'},500);await db.from('staff_assignments').update({auth_user_id:u.user.id,password_set:true,password_change_required:false,status:'入力中',updated_at:new Date().toISOString()}).eq('id',a.id);await db.from('staff_verification_tokens').update({used_at:new Date().toISOString()}).eq('token_hash',tokenHash);return json({ok:true,login_email:email})
   }
   return json({ok:false,message:'invalid action'},400)
  }catch(e){console.error(e);return json({ok:false,message:e instanceof Error?e.message:'処理に失敗しました。'},500)}

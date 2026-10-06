@@ -28,7 +28,7 @@ verifyForm.addEventListener('submit',async(e)=>{
   e.preventDefault();stopLockTimer();hide(errorBox);
   const staff_id=document.getElementById('staffId').value.trim();
   const birth_date=document.getElementById('birthDate').value.trim();
-  if(!/^\d{4}$/.test(staff_id)||!/^\d{8}$/.test(birth_date))return show(errorBox,'スタッフIDは4桁、生年月日は8桁の数字で入力してください。');
+  if(!/^\d{4}$/.test(staff_id)||!/^\d{8}$/.test(birth_date))return show(errorBox,'社員番号は4桁、生年月日は8桁の数字で入力してください。');
   const {data,error}=await supabase.functions.invoke(STAFF_AUTH_FUNCTION,{body:{action:'verify',staff_id,birth_date,year:TARGET_YEAR}});
   if(error||!data?.ok){
     if(data?.locked)return showLock(data);
@@ -71,5 +71,7 @@ document.getElementById('passwordForm').addEventListener('submit',async(e)=>{
   }
   const {error:signInError}=await supabase.auth.signInWithPassword({email:loginEmail,password});
   if(signInError)return show(passwordError,'パスワードが正しくありません。');
-  location.href='./index.html';
+  const {data:pwStatus,error:pwStatusError}=await supabase.functions.invoke(STAFF_AUTH_FUNCTION,{body:{action:'staff-password-status'}});
+  if(pwStatusError||!pwStatus?.ok)return show(passwordError,pwStatus?.message||'ログイン後の状態確認に失敗しました。');
+  location.href=pwStatus.password_change_required?'./password.html?required=1':'./index.html';
 });
