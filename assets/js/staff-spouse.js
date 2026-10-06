@@ -1,4 +1,4 @@
-import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, yen, saveAndReturn, bindYenInput, setYenInput, parseYenInput } from './staff-common.js';
+import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, yen, saveAndReturn, bindYenInput, setYenInput, parseYenInput, runAddAction } from './staff-common.js';
 let ctx;
 try { ctx = await requireStaffContext(); } catch { show($('pageError'),'対象データを取得できません。'); throw new Error('assignment not found'); }
 const { assignment, deadline, canEdit } = ctx;
@@ -43,8 +43,13 @@ $('addDependentForm').onsubmit=async e=>{
   e.preventDefault();hide($('pageError'));if(!canEdit)return show($('pageError'),'現在は編集できません。');
   const payload={staff_assignment_id:assignment.id,name:$('depName').value.trim(),name_kana:$('depKana').value.trim(),birth_date:$('depBirth').value,relationship:$('depRelationship').value.trim(),estimated_income:parseYenInput($('depIncome').value),living_together:$('depLiving').checked,address:$('depAddress').value.trim(),nonresident:$('depNonresident').checked,disability_category:$('depDisability').value};
   if(!payload.name||!payload.birth_date||!payload.relationship)return show($('pageError'),'扶養親族の氏名・生年月日・続柄を入力してください。');
-  const {error}=await supabase.from('staff_dependents').insert(payload);if(error)return show($('pageError'),error.message);
-  $('addDependentForm').reset();$('depLiving').checked=true;await loadDependents();
+  const btn=e.submitter||$('addDependentForm').querySelector('button[type="submit"]');
+  try {
+    await runAddAction(btn, async()=>{
+      const {error}=await supabase.from('staff_dependents').insert(payload);if(error)throw error;
+      $('addDependentForm').reset();$('depLiving').checked=true;await loadDependents();
+    }, { toastText:'扶養親族を追加しました。' });
+  } catch(err) { show($('pageError'),err.message); }
 };
 
 $('saveSpouse').onclick=async()=>{

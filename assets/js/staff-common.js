@@ -110,6 +110,36 @@ export async function saveAndReturn(button, task, savingText='保存中…') {
   }
 }
 
+
+export function showActionToast(message, type = 'success') {
+  let toast = document.getElementById('actionToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'actionToast';
+    toast.className = 'action-toast';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+    document.body.appendChild(toast);
+  }
+  clearTimeout(showActionToast._timer);
+  toast.className = `action-toast ${type === 'error' ? 'is-error' : 'is-success'} is-visible`;
+  toast.textContent = message;
+  showActionToast._timer = setTimeout(() => toast.classList.remove('is-visible'), 2200);
+}
+
+export async function runAddAction(button, task, { pendingText = '追加中…', successText = '追加しました', toastText = '追加しました。' } = {}) {
+  const original = button?.textContent || '';
+  if (button) { button.disabled = true; button.textContent = pendingText; }
+  try {
+    await task();
+    if (button) button.textContent = successText;
+    showActionToast(toastText);
+    await new Promise(resolve => setTimeout(resolve, 650));
+  } finally {
+    if (button) { button.disabled = false; button.textContent = original; }
+  }
+}
+
 export function bindLogout() {
   const el = $('logout');
   if (!el) return;

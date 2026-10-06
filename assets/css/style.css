@@ -29,3 +29,7 @@
 
 /* v0.9.6 version display */
 .app-version{margin-top:10px;text-align:right;color:#94a3b8;font-size:12px;line-height:1}
+
+
+/* v0.9.7 追加・アップロード操作の完了通知 */
+.action-toast{position:fixed;left:50%;bottom:28px;z-index:4000;max-width:min(520px,calc(100vw - 32px));padding:13px 18px;border-radius:12px;box-shadow:0 10px 30px rgba(15,23,42,.18);font-weight:800;opacity:0;visibility:hidden;transform:translate(-50%,14px);transition:opacity .18s ease,transform .18s ease,visibility .18s;background:#ecfdf5;border:1px solid #86efac;color:#166534;text-align:center}.action-toast.is-visible{opacity:1;visibility:visible;transform:translate(-50%,0)}.action-toast.is-error{background:#fef2f2;border-color:#fecaca;color:#b91c1c}@media(max-width:600px){.action-toast{bottom:18px;width:calc(100vw - 28px)}}

@@ -1,4 +1,4 @@
-import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, yen, saveAndReturn, bindYenInput, parseYenInput } from './staff-common.js';
+import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, yen, saveAndReturn, bindYenInput, parseYenInput, runAddAction } from './staff-common.js';
 
 let ctx;
 try { ctx = await requireStaffContext(); }
@@ -59,10 +59,15 @@ $('insuranceForm').onsubmit = async e => {
   };
   if(!payload.insurance_type||!payload.company_name||!payload.policyholder_name||!payload.paid_amount)
     return show($('pageError'),'種類・保険会社等・契約者・支払額を入力してください。');
-  const {error}=await supabase.from('staff_insurance_entries').insert(payload);
-  if(error) return show($('pageError'),error.message);
-  $('insuranceForm').reset();
-  await load();
+  const btn=e.submitter||$('insuranceForm').querySelector('button[type="submit"]');
+  try {
+    await runAddAction(btn, async()=>{
+      const {error}=await supabase.from('staff_insurance_entries').insert(payload);
+      if(error) throw error;
+      $('insuranceForm').reset();
+      await load();
+    }, { toastText:'保険料情報を追加しました。' });
+  } catch(err) { show($('pageError'),err.message); }
 };
 
 $('completeInsurance').onclick = async () => {
