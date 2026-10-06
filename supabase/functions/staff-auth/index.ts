@@ -67,13 +67,13 @@ Deno.serve(async(req)=>{
   if(body.action==='verify'){
    const staffId=String(body.staff_id||'');const dob=normalizeDOB(String(body.birth_date||''));const year=Number(body.year||0);if(!/^\d{4}$/.test(staffId)||!dob||year!==2026)return json({ok:false,message:'入力内容を確認してください。'},400);
    const now=new Date(),staffWindowMs=24*60*60*1000,ipWindowMs=30*60*1000;const requestIpHash=await ipHash();
-   if(requestIpHash){const {data:ipLimit}=await db.from('staff_auth_ip_limits').select('failed_count,window_started_at,locked_until').eq('ip_hash',requestIpHash).maybeSingle();if(ipLimit?.locked_until&&new Date(ipLimit.locked_until)>now)return json({ok:false,locked:true,lock_type:'ip',locked_until:ipLimit.locked_until,message:'ロックされています。'},429)}
-   const {data:limit}=await db.from('staff_auth_limits').select('failed_count,locked_until,window_started_at').eq('staff_id',staffId).maybeSingle();if(limit?.locked_until&&new Date(limit.locked_until)>now)return json({ok:false,locked:true,lock_type:'staff',locked_until:limit.locked_until,failed_count:5,max_attempts:5,message:'ロックされています。'},429);
+   if(requestIpHash){const {data:ipLimit}=await db.from('staff_auth_ip_limits').select('failed_count,window_started_at,locked_until').eq('ip_hash',requestIpHash).maybeSingle();if(ipLimit?.locked_until&&new Date(ipLimit.locked_until)>now)return json({ok:false,locked:true,lock_type:'ip',locked_until:ipLimit.locked_until,message:'ロックされています。'})}
+   const {data:limit}=await db.from('staff_auth_limits').select('failed_count,locked_until,window_started_at').eq('staff_id',staffId).maybeSingle();if(limit?.locked_until&&new Date(limit.locked_until)>now)return json({ok:false,locked:true,lock_type:'staff',locked_until:limit.locked_until,failed_count:5,max_attempts:5,message:'ロックされています。'});
    const {data,error}=await db.from('staff_assignments').select('id,password_set,auth_user_id,staff_members!inner(staff_id,birth_date)').eq('year',year).eq('staff_members.staff_id',staffId).eq('staff_members.birth_date',dob).maybeSingle();
    if(error||!data){
     const staffWindow=limit?.window_started_at?new Date(limit.window_started_at):null;const staffFresh=staffWindow&&now.getTime()-staffWindow.getTime()<staffWindowMs;const next=staffFresh?(limit?.failed_count||0)+1:1;const started=staffFresh?limit!.window_started_at:now.toISOString();await db.from('staff_auth_limits').upsert({staff_id:staffId,failed_count:next,window_started_at:started,locked_until:next>=5?new Date(now.getTime()+staffWindowMs).toISOString():null,updated_at:now.toISOString()});
     let ipLocked=false;if(requestIpHash){const {data:ipLimit}=await db.from('staff_auth_ip_limits').select('failed_count,window_started_at').eq('ip_hash',requestIpHash).maybeSingle();const ipWindow=ipLimit?.window_started_at?new Date(ipLimit.window_started_at):null;const ipFresh=ipWindow&&now.getTime()-ipWindow.getTime()<ipWindowMs;const ipNext=ipFresh?(ipLimit?.failed_count||0)+1:1;const ipStarted=ipFresh?ipLimit!.window_started_at:now.toISOString();ipLocked=ipNext>=20;await db.from('staff_auth_ip_limits').upsert({ip_hash:requestIpHash,failed_count:ipNext,window_started_at:ipStarted,locked_until:ipLocked?new Date(now.getTime()+ipWindowMs).toISOString():null,updated_at:now.toISOString()})}
-    if(next>=5){const lockedUntil=new Date(now.getTime()+staffWindowMs).toISOString();return json({ok:false,locked:true,lock_type:'staff',locked_until:lockedUntil,failed_count:5,max_attempts:5,message:'ロックされています。'},429)}if(ipLocked){const ipLockedUntil=new Date(now.getTime()+ipWindowMs).toISOString();return json({ok:false,locked:true,lock_type:'ip',locked_until:ipLockedUntil,message:'ロックされています。'},429)}return json({ok:false,failed_count:next,max_attempts:5,message:'スタッフIDまたは生年月日が一致しません。'},401)
+    if(next>=5){const lockedUntil=new Date(now.getTime()+staffWindowMs).toISOString();return json({ok:false,locked:true,lock_type:'staff',locked_until:lockedUntil,failed_count:5,max_attempts:5,message:'ロックされています。'})}if(ipLocked){const ipLockedUntil=new Date(now.getTime()+ipWindowMs).toISOString();return json({ok:false,locked:true,lock_type:'ip',locked_until:ipLockedUntil,message:'ロックされています。'})}return json({ok:false,failed_count:next,max_attempts:5,message:'スタッフIDまたは生年月日が一致しません。'})
    }
    await db.from('staff_auth_limits').upsert({staff_id:staffId,failed_count:0,window_started_at:null,locked_until:null,updated_at:now.toISOString()});const raw=crypto.randomUUID()+crypto.randomUUID();const tokenHash=await hash(raw);await db.from('staff_verification_tokens').insert({token_hash:tokenHash,staff_assignment_id:data.id,expires_at:new Date(Date.now()+10*60*1000).toISOString()});return json({ok:true,needs_password_setup:!data.password_set,verification_token:raw,login_email:data.password_set?`${staffId}.2026@staff.invalid`:null})
   }
@@ -92,7 +92,31 @@ Deno.serve(async(req)=>{
    const auth=await requireAdmin();if(auth.error)return auth.error;const assignmentId=String(body.assignment_id||'');const editableUntil=body.editable_until===null?null:String(body.editable_until||'');if(!assignmentId)return json({ok:false,message:'対象スタッフを確認できません。'},400);if(editableUntil&&Number.isNaN(new Date(editableUntil).getTime()))return json({ok:false,message:'編集期限を確認してください。'},400);const {error}=await db.from('staff_assignments').update({editable_until_override:editableUntil,updated_at:new Date().toISOString()}).eq('id',assignmentId);if(error)return json({ok:false,message:error.message},500);return json({ok:true})
   }
   if(body.action==='admin-reset-password'){
-   const auth=await requireAdmin();if(auth.error)return auth.error;const assignmentId=String(body.assignment_id||'');const {data:a,error}=await db.from('staff_assignments').select('auth_user_id,password_set,staff_members!inner(staff_id,display_name)').eq('id',assignmentId).maybeSingle();if(error||!a)return json({ok:false,message:'対象スタッフが見つかりません。'},404);if(!a.password_set||!a.auth_user_id)return json({ok:false,message:'このスタッフはまだ初回パスワード設定をしていません。'},409);const temporaryPassword=randomPassword();const {error:updateError}=await db.auth.admin.updateUserById(a.auth_user_id,{password:temporaryPassword});if(updateError)return json({ok:false,message:'パスワードを再発行できませんでした。'},500);return json({ok:true,temporary_password:temporaryPassword,staff_id:(a.staff_members as any).staff_id,display_name:(a.staff_members as any).display_name})
+   const auth=await requireAdmin();if(auth.error)return auth.error;
+   const assignmentId=String(body.assignment_id||'');
+   const {data:a,error}=await db.from('staff_assignments').select('id,auth_user_id,password_set,staff_members!inner(staff_id,display_name)').eq('id',assignmentId).maybeSingle();
+   if(error||!a)return json({ok:false,message:'対象スタッフが見つかりません。'});
+   if(!a.password_set)return json({ok:false,message:'このスタッフはまだ初回パスワード設定をしていません。'});
+   const staffId=(a.staff_members as any).staff_id;
+   const displayName=(a.staff_members as any).display_name;
+   const temporaryPassword=randomPassword();
+   let authUserId=a.auth_user_id as string|null;
+   if(authUserId){
+    const {data:userCheck,error:userCheckError}=await db.auth.admin.getUserById(authUserId);
+    if(userCheckError||!userCheck?.user)authUserId=null;
+   }
+   if(!authUserId){
+    const email=`${staffId}.2026@staff.invalid`;
+    const {data:created,error:createError}=await db.auth.admin.createUser({email,password:temporaryPassword,email_confirm:true,user_metadata:{kind:'staff',staff_id:staffId,year:2026}});
+    if(createError||!created.user)return json({ok:false,message:`パスワード再発行用アカウントを作成できませんでした。${createError?.message?` (${createError.message})`:''}`});
+    authUserId=created.user.id;
+    const {error:linkError}=await db.from('staff_assignments').update({auth_user_id:authUserId,password_set:true,updated_at:new Date().toISOString()}).eq('id',a.id);
+    if(linkError)return json({ok:false,message:`再作成したアカウントをスタッフ情報へ紐づけできませんでした。 (${linkError.message})`});
+   }else{
+    const {error:updateError}=await db.auth.admin.updateUserById(authUserId,{password:temporaryPassword});
+    if(updateError)return json({ok:false,message:`パスワードを再発行できませんでした。 (${updateError.message})`});
+   }
+   return json({ok:true,temporary_password:temporaryPassword,staff_id:staffId,display_name:displayName})
   }
   if(body.action==='admin-delete-staff'){
    const auth=await requireAdmin();if(auth.error)return auth.error;const assignmentId=String(body.assignment_id||'');const {data:a,error}=await db.from('staff_assignments').select('id,staff_member_id,auth_user_id,staff_members!inner(staff_id,display_name)').eq('id',assignmentId).maybeSingle();if(error||!a)return json({ok:false,message:'対象スタッフが見つかりません。'},404);

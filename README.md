@@ -1,10 +1,12 @@
-# 年末調整サイト v0.9.10
+# 年末調整サイト v0.9.11
 
 ## 修正内容
-- 基本情報・本人/所得情報・配偶者/扶養・保険料控除で、初期データ読込完了までフォーム本体を確実に非表示にするローディングを強化。
-- 上記4画面は重要なローディングCSSをHTML内にも配置し、外部CSS読込前の一瞬表示も防止。
-- スタッフTOPから各入力画面へのURLに `?v=0.9.10` を付与し、GitHub Pages/ブラウザの古いHTML・JSキャッシュを回避。
-- CSS/JS参照にもバージョンクエリを付与。
-- 表示バージョンを v0.9.10 に更新。
+- 管理者画面のPW再発行で Edge Function の非2xxエラーが共通メッセージしか表示されない問題を修正。
+- PW再発行時にスタッフのSupabase Authユーザーが存在しない場合、8桁英数字の仮PWでAuthユーザーを再作成し、スタッフ情報へ再紐付けして復旧できるように変更。
+- Auth更新・再作成・紐付けで失敗した場合は、管理画面に具体的なエラー内容を表示。
+- 表示バージョンを v0.9.11 に更新。
 
-SQL migration・Edge Function再デプロイは不要です。
+## 反映手順
+1. `supabase/functions/staff-auth/index.ts` をEdge Function `staff-auth` へ上書きして再デプロイ。
+2. `assets/js/admin.js` と `assets/js/version.js` をGitHubへ上書き。
+3. SQL migrationは不要。
