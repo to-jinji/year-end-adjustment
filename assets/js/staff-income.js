@@ -125,8 +125,7 @@ try {
 
   $('otherSalaryIncome').addEventListener('input',syncSlipSection);
 
-  $('otherEmployerSlipForm').onsubmit=async e=>{
-    e.preventDefault();
+  $('uploadOtherEmployerSlip').onclick=async()=>{
     hide($('pageError'));
     if(!canEdit)return show($('pageError'),'現在は編集できません。');
     if(!hasOtherEmployerSalary())return show($('pageError'),'先にTO株式会社以外から受け取る給与の見込額を入力してください。');
@@ -139,7 +138,7 @@ try {
       return show($('pageError'),'PDFまたは画像ファイルを選択してください。');
     }
 
-    const btn=e.submitter||$('otherEmployerSlipForm').querySelector('button[type="submit"]');
+    const btn=$('uploadOtherEmployerSlip');
     const original=btn.textContent;
     btn.disabled=true;
     btn.textContent=file.type?.startsWith('image/')?'画像を圧縮中…':'アップロード中…';
@@ -150,7 +149,6 @@ try {
 
       btn.textContent='アップロード中…';
 
-      // 同カテゴリは1件のみ保持し、再アップロード時は置き換える。
       const {data:existing,error:existingError}=await supabase
         .from('staff_documents')
         .select('*')
@@ -179,13 +177,12 @@ try {
         throw insertError;
       }
 
-      // 新しいファイル登録後に旧ファイルを削除。
       for(const oldDoc of existing||[]){
         await supabase.storage.from('year-end-adjustment-documents').remove([oldDoc.storage_path]);
         await supabase.from('staff_documents').delete().eq('id',oldDoc.id);
       }
 
-      $('otherEmployerSlipForm').reset();
+      $('otherEmployerSlipFile').value='';
       await loadOtherEmployerSlip();
       showActionToast('他勤務先の源泉徴収票をアップロードしました。');
       btn.textContent='アップロードしました';
@@ -228,7 +225,8 @@ try {
 
   if(!canEdit){
     lockForm($('incomeForm'));
-    $('otherEmployerSlipForm').querySelectorAll('input,button').forEach(x=>x.disabled=true);
+    $('otherEmployerSlipFile').disabled=true;
+    $('uploadOtherEmployerSlip').disabled=true;
     $('lockedMessage').classList.remove('hidden');
   }
   bindLogout();
