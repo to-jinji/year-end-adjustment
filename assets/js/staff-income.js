@@ -124,6 +124,8 @@ try {
   await loadOtherEmployerSlip();
 
   $('otherSalaryIncome').addEventListener('input',syncSlipSection);
+  $('otherSalaryIncome').addEventListener('change',syncSlipSection);
+  $('otherSalaryIncome').addEventListener('blur',syncSlipSection);
 
   $('uploadOtherEmployerSlip').onclick=async()=>{
     hide($('pageError'));
