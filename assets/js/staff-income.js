@@ -43,7 +43,7 @@ try {
   const {assignment,deadline,canEdit}=ctx;
   $('deadline').textContent=formatDeadline(deadline);
   bindYenInput($('otherSalaryIncome'));
-  bindYenInput($('otherIncome'));
+  bindYenInput($('otherIncomeAmount'));
 
   function hasOtherEmployerSalary(){
     return parseYenInput($('otherSalaryIncome').value)>0;
@@ -104,21 +104,109 @@ try {
     };
   }
 
-  const {data:info,error:infoError}=await supabase
-    .from('staff_income_info')
-    .select('*')
-    .eq('staff_assignment_id',assignment.id)
-    .maybeSingle();
+  const [
+    {data:info,error:infoError},
+    {data:otherIncomeItemsData,error:otherIncomeItemsError}
+  ]=await Promise.all([
+    supabase.from('staff_income_info').select('*').eq('staff_assignment_id',assignment.id).maybeSingle(),
+    supabase.from('staff_other_income_items').select('*').eq('staff_assignment_id',assignment.id).order('created_at')
+  ]);
   if(infoError)throw infoError;
+  if(otherIncomeItemsError)throw otherIncomeItemsError;
+
+  let otherIncomeItems=otherIncomeItemsData||[];
 
   if(info){
     setYenInput($('otherSalaryIncome'),info.other_salary_income);
-    setYenInput($('otherIncome'),info.other_income);
     $('selfDisability').value=info.disability_category||'なし';
     $('widowSingleParent').value=info.widow_single_parent||'なし';
     $('workingStudent').checked=!!info.working_student;
     $('incomeNote').value=info.note||'';
   }
+
+  function otherIncomeTotal(){
+    return otherIncomeItems.reduce((sum,item)=>sum+Number(item.amount||0),0);
+  }
+
+  function syncOtherIncomeVisibility(){
+    const yes=$('hasOtherIncome').value==='yes';
+    $('otherIncomeDetails').classList.toggle('hidden',!yes);
+  }
+
+  function renderOtherIncomeItems(){
+    const box=$('otherIncomeList');
+    if(!otherIncomeItems.length){
+      box.innerHTML='<div class="muted">登録なし</div>';
+    }else{
+      box.innerHTML=otherIncomeItems.map(item=>`
+        <div class="list-row">
+          <div>
+            <strong>${esc(item.income_type)}</strong>
+            <div class="field-help">${Number(item.amount||0).toLocaleString('ja-JP')}円${item.note?` / ${esc(item.note)}`:''}</div>
+          </div>
+          <button type="button" class="btn tiny secondary" data-other-income-delete="${item.id}" ${canEdit?'':'disabled'}>削除</button>
+        </div>`).join('');
+      box.querySelectorAll('[data-other-income-delete]').forEach(btn=>{
+        btn.onclick=async()=>{
+          if(!canEdit)return;
+          if(!confirm('この所得情報を削除しますか？'))return;
+          hide($('pageError'));
+          try{
+            const {error}=await supabase.from('staff_other_income_items').delete().eq('id',btn.dataset.otherIncomeDelete);
+            if(error)throw error;
+            otherIncomeItems=otherIncomeItems.filter(x=>x.id!==btn.dataset.otherIncomeDelete);
+            renderOtherIncomeItems();
+            showActionToast('所得情報を削除しました。');
+          }catch(err){
+            show($('pageError'),err.message);
+          }
+        };
+      });
+    }
+    $('otherIncomeTotal').textContent=`${otherIncomeTotal().toLocaleString('ja-JP')}円`;
+  }
+
+  $('hasOtherIncome').value=otherIncomeItems.length?'yes':'no';
+  syncOtherIncomeVisibility();
+  renderOtherIncomeItems();
+
+  $('hasOtherIncome').onchange=syncOtherIncomeVisibility;
+
+  $('addOtherIncome').onclick=async()=>{
+    hide($('pageError'));
+    if(!canEdit)return show($('pageError'),'現在は編集できません。');
+
+    const amount=parseYenInput($('otherIncomeAmount').value);
+    if(amount<=0)return show($('pageError'),'所得金額を1円以上で入力してください。');
+
+    const btn=$('addOtherIncome');
+    const original=btn.textContent;
+    btn.disabled=true;
+    btn.textContent='追加中…';
+    try{
+      const row={
+        staff_assignment_id:assignment.id,
+        income_type:$('otherIncomeType').value,
+        amount,
+        note:$('otherIncomeNote').value.trim()||null,
+        updated_at:new Date().toISOString()
+      };
+      const {data,error}=await supabase.from('staff_other_income_items').insert(row).select('*').single();
+      if(error)throw error;
+      otherIncomeItems.push(data);
+      $('otherIncomeAmount').value='';
+      $('otherIncomeNote').value='';
+      renderOtherIncomeItems();
+      showActionToast('給与以外の所得を追加しました。');
+      btn.textContent='追加しました';
+      setTimeout(()=>{btn.textContent=original;},900);
+    }catch(err){
+      show($('pageError'),err.message);
+    }finally{
+      btn.disabled=false;
+      if(btn.textContent!=='追加しました')btn.textContent=original;
+    }
+  };
 
   syncSlipSection();
   await loadOtherEmployerSlip();
@@ -203,10 +291,22 @@ try {
     hide($('pageSuccess'));
     if(!canEdit)return show($('pageError'),'現在は編集できません。');
 
+    if($('hasOtherIncome').value==='yes' && otherIncomeItems.length===0){
+      return show($('pageError'),'給与以外の所得がある場合は、所得を1件以上追加してください。');
+    }
+
+    if($('hasOtherIncome').value==='no' && otherIncomeItems.length>0){
+      if(!confirm('登録済みの給与以外の所得をすべて削除して「なし」に変更しますか？'))return;
+      const {error:deleteError}=await supabase.from('staff_other_income_items').delete().eq('staff_assignment_id',assignment.id);
+      if(deleteError)return show($('pageError'),deleteError.message);
+      otherIncomeItems=[];
+      renderOtherIncomeItems();
+    }
+
     const payload={
       staff_assignment_id:assignment.id,
       other_salary_income:parseYenInput($('otherSalaryIncome').value),
-      other_income:parseYenInput($('otherIncome').value),
+      other_income:otherIncomeTotal(),
       disability_category:$('selfDisability').value,
       widow_single_parent:$('widowSingleParent').value,
       working_student:$('workingStudent').checked,
@@ -229,6 +329,11 @@ try {
     lockForm($('incomeForm'));
     $('otherEmployerSlipFile').disabled=true;
     $('uploadOtherEmployerSlip').disabled=true;
+    $('hasOtherIncome').disabled=true;
+    $('otherIncomeType').disabled=true;
+    $('otherIncomeAmount').disabled=true;
+    $('otherIncomeNote').disabled=true;
+    $('addOtherIncome').disabled=true;
     $('lockedMessage').classList.remove('hidden');
   }
   bindLogout();
