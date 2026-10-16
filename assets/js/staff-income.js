@@ -136,7 +136,7 @@ try {
   function renderOtherIncomeItems(){
     const box=$('otherIncomeList');
     if(!otherIncomeItems.length){
-      box.innerHTML='<div class="muted">登録なし</div>';
+      box.innerHTML='<div class="other-income-empty">登録済みの所得はありません。</div>';
     }else{
       box.innerHTML=otherIncomeItems.map(item=>`
         <div class="list-row">
