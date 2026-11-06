@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>扶養控除等申告書 | 管理</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/css/style.css?v=0.12.0">
+<style>
+.declaration-view section{padding:16px 0;border-top:1px solid #dbe3ee}.declaration-view section:first-child{border-top:0}
+.declaration-view h2{margin:0 0 10px}.kv{display:grid;grid-template-columns:180px 1fr;gap:6px 14px}.kv dt{font-weight:700}.kv dd{margin:0}
+.dep-view{border:1px solid #dbe3ee;border-radius:10px;padding:12px;margin:8px 0}
+@media(max-width:640px){.kv{grid-template-columns:1fr}.kv dd{margin-bottom:8px}}
+</style>
+</head>
+<body>
+<main class="shell admin-shell">
+<div class="topbar"><div><a href="./index.html">← 管理画面</a><h1>扶養控除等申告書</h1></div><button id="logout" class="btn secondary">ログアウト</button></div>
+<section class="card">
+<div id="pageError" class="error"></div>
+<p id="staffMeta" class="muted"></p>
+<p id="confirmedAt" class="notice"></p>
+<div id="declarationView" class="declaration-view"></div>
+</section>
+</main>
+<script type="module" src="../assets/js/admin-fuyou-declaration.js?v=0.12.0"></script>
+</body></html>

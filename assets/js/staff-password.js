@@ -36,7 +36,7 @@ $('passwordChangeForm').addEventListener('submit',async e=>{
     if(signInError)throw new Error('パスワードは変更されましたが、自動ログインに失敗しました。もう一度ログインしてください。');
     show($('passwordChangeSuccess'),'パスワードを変更しました。');
     $('newPassword').value='';$('newPasswordConfirm').value='';
-    setTimeout(()=>location.replace('./index.html'),500);
+    setTimeout(()=>location.replace('./fuyou-declaration.html?v=0.12.0'),500);
   }catch(err){show($('passwordChangeError'),err instanceof Error?err.message:'パスワードを変更できませんでした。')}
   finally{btn.disabled=false;btn.textContent='パスワードを変更'}
 });

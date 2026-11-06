@@ -122,6 +122,8 @@ try {
     $('widowSingleParent').value=info.widow_single_parent||'なし';
     $('workingStudent').checked=!!info.working_student;
     $('incomeNote').value=info.note||'';
+    $('secondaryDependentDeclarationSubmitted').checked=!!info.secondary_dependent_declaration_submitted;
+    $('disabilityStudentDetail').value=info.disability_student_detail||'';
   }
 
   function otherIncomeTotal(){
@@ -310,6 +312,8 @@ try {
       disability_category:$('selfDisability').value,
       widow_single_parent:$('widowSingleParent').value,
       working_student:$('workingStudent').checked,
+      secondary_dependent_declaration_submitted:$('secondaryDependentDeclarationSubmitted').checked,
+      disability_student_detail:$('disabilityStudentDetail').value.trim(),
       note:$('incomeNote').value.trim(),
       updated_at:new Date().toISOString()
     };

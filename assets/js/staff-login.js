@@ -73,5 +73,5 @@ document.getElementById('passwordForm').addEventListener('submit',async(e)=>{
   if(signInError)return show(passwordError,'パスワードが正しくありません。');
   const {data:pwStatus,error:pwStatusError}=await supabase.functions.invoke(STAFF_AUTH_FUNCTION,{body:{action:'staff-password-status'}});
   if(pwStatusError||!pwStatus?.ok)return show(passwordError,pwStatus?.message||'ログイン後の状態確認に失敗しました。');
-  location.href=pwStatus.password_change_required?'./password.html?required=1':'./index.html';
+  location.href=pwStatus.password_change_required?'./password.html?required=1':'./fuyou-declaration.html?v=0.12.0';
 });
