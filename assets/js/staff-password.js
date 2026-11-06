@@ -1,9 +1,29 @@
 import { supabase } from './supabase.js';
-import { STAFF_AUTH_FUNCTION } from './config.js';
+import { STAFF_AUTH_FUNCTION, TARGET_YEAR } from './config.js';
 
 const $=id=>document.getElementById(id);
 const show=(el,msg)=>{el.textContent=msg;el.style.display='block';el.classList.remove('hidden')};
 const hide=el=>{el.textContent='';el.style.display='none';el.classList.add('hidden')};
+
+
+async function destinationAfterPasswordChange(){
+  const {data:{user:currentUser}}=await supabase.auth.getUser();
+  if(!currentUser)return './login.html';
+  const {data:assignment,error:assignmentError}=await supabase
+    .from('staff_assignments')
+    .select('id')
+    .eq('auth_user_id',currentUser.id)
+    .eq('year',TARGET_YEAR)
+    .single();
+  if(assignmentError||!assignment)throw new Error('スタッフ情報を確認できません。');
+  const {data:confirmation,error:confirmationError}=await supabase
+    .from('staff_fuyou_declaration_confirmations')
+    .select('staff_assignment_id')
+    .eq('staff_assignment_id',assignment.id)
+    .maybeSingle();
+  if(confirmationError)throw confirmationError;
+  return confirmation?'./index.html':'./fuyou-declaration.html?v=0.12.1';
+}
 
 const {data:{user}}=await supabase.auth.getUser();
 if(!user)location.replace('./login.html');
@@ -36,7 +56,8 @@ $('passwordChangeForm').addEventListener('submit',async e=>{
     if(signInError)throw new Error('パスワードは変更されましたが、自動ログインに失敗しました。もう一度ログインしてください。');
     show($('passwordChangeSuccess'),'パスワードを変更しました。');
     $('newPassword').value='';$('newPasswordConfirm').value='';
-    setTimeout(()=>location.replace('./fuyou-declaration.html?v=0.12.0'),500);
+    const destination=await destinationAfterPasswordChange();
+    setTimeout(()=>location.replace(destination),500);
   }catch(err){show($('passwordChangeError'),err instanceof Error?err.message:'パスワードを変更できませんでした。')}
   finally{btn.disabled=false;btn.textContent='パスワードを変更'}
 });

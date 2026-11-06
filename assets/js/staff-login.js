@@ -12,6 +12,26 @@ const formatRemaining=(lockedUntil)=>{
   const minutes=totalMinutes%60;
   return `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}`;
 };
+
+async function destinationAfterLogin(){
+  const {data:{user}}=await supabase.auth.getUser();
+  if(!user)return './login.html';
+  const {data:assignment,error:assignmentError}=await supabase
+    .from('staff_assignments')
+    .select('id')
+    .eq('auth_user_id',user.id)
+    .eq('year',TARGET_YEAR)
+    .single();
+  if(assignmentError||!assignment)throw new Error('スタッフ情報を確認できません。');
+  const {data:confirmation,error:confirmationError}=await supabase
+    .from('staff_fuyou_declaration_confirmations')
+    .select('staff_assignment_id')
+    .eq('staff_assignment_id',assignment.id)
+    .maybeSingle();
+  if(confirmationError)throw confirmationError;
+  return confirmation?'./index.html':'./fuyou-declaration.html?v=0.12.1';
+}
+
 const showLock=(data)=>{
   stopLockTimer();
   const render=()=>{
@@ -73,5 +93,10 @@ document.getElementById('passwordForm').addEventListener('submit',async(e)=>{
   if(signInError)return show(passwordError,'パスワードが正しくありません。');
   const {data:pwStatus,error:pwStatusError}=await supabase.functions.invoke(STAFF_AUTH_FUNCTION,{body:{action:'staff-password-status'}});
   if(pwStatusError||!pwStatus?.ok)return show(passwordError,pwStatus?.message||'ログイン後の状態確認に失敗しました。');
-  location.href=pwStatus.password_change_required?'./password.html?required=1':'./fuyou-declaration.html?v=0.12.0';
+  if(pwStatus.password_change_required){
+    location.href='./password.html?required=1';
+  }else{
+    try{location.href=await destinationAfterLogin();}
+    catch(err){return show(passwordError,err?.message||'ログイン後の状態確認に失敗しました。');}
+  }
 });

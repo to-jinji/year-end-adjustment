@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>扶養控除等申告書 | 年末調整</title>
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="../assets/css/style.css?v=0.12.0">
+<link rel="stylesheet" href="../assets/css/style.css?v=0.12.1">
 <style>
 .declaration-intro{margin-bottom:18px}
 .declaration-section{margin:18px 0;padding-top:18px;border-top:1px solid #dbe3ee}
@@ -33,12 +33,9 @@
   </div>
   <section class="card">
     <div id="pageError" class="error"></div>
-    <div id="readonlyNotice" class="declaration-readonly hidden">
-      提出済みの内容を表示しています。修正する場合は年末調整TOPから「内容を修正する」を開始してください。
-    </div>
-    <div class="notice declaration-intro">
+<div class="notice declaration-intro">
       令和8年分「給与所得者の扶養控除等（異動）申告書」の内容です。<br>
-      ここで入力した内容は「基本情報」「本人・所得情報」「配偶者・扶養」に自動反映されます。
+      ここで入力・修正した内容は「基本情報」「本人・所得情報」「配偶者・扶養」に自動反映されます。
       すでに回答済みの内容は自動で表示されます。個人番号はこのサイトでは収集しません。
     </div>
     <p id="confirmedInfo" class="confirmed-info"></p>
@@ -47,8 +44,8 @@
       <section class="declaration-section">
         <h2>本人情報</h2>
         <div class="declaration-grid">
-          <div class="field"><label>氏名</label><input id="displayName" readonly></div>
-          <div class="field"><label>生年月日</label><input id="birthDate" readonly></div>
+          <div class="field"><label>氏名</label><input id="displayName" readonly><p class="field-help">社員登録情報のため、修正が必要な場合は管理者へご連絡ください。</p></div>
+          <div class="field"><label>生年月日</label><input id="birthDate" readonly><p class="field-help">本人確認に使用する登録情報です。</p></div>
           <div class="field"><label>フリガナ <span class="field-badge required">必須</span></label><input id="nameKana"></div>
           <div class="field"><label>郵便番号 <span class="field-badge required">必須</span></label><input id="postalCode" inputmode="numeric" maxlength="7" placeholder="8120013"></div>
         </div>
@@ -100,13 +97,10 @@
         <div id="dependentsContainer"></div>
       </section>
 
-      <div class="declaration-actions">
-        <button id="saveDeclaration" class="btn" type="submit">保存して年末調整へ</button>
-        <a class="btn secondary" href="./index.html">年末調整TOPへ</a>
-      </div>
+      <div class="declaration-actions"><button id="saveDeclaration" class="btn" type="submit">保存して年末調整TOPへ</button></div>
     </form>
   </section>
 </main>
-<script type="module" src="../assets/js/staff-fuyou-declaration.js?v=0.12.0"></script>
+<script type="module" src="../assets/js/staff-fuyou-declaration.js?v=0.12.1"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-import { supabase, $, show, hide, requireStaffContext, bindLogout, bindYenInput, setYenInput, parseYenInput, markSectionComplete, finishPageLoading } from './staff-common.js';
+import { supabase, YEAR, $, show, hide, bindLogout, bindYenInput, setYenInput, parseYenInput, finishPageLoading } from './staff-common.js';
 
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let ctx, dependents=[], deletedDependentIds=[];
@@ -54,9 +54,6 @@ function renderDependents(){
       <div class="field"><label>退職所得を除く所得見積額（円）</label><input data-f="retirement_income_estimate" class="dep-yen" type="text" inputmode="numeric" value="${Number(d.retirement_income_estimate||0)>0?Number(d.retirement_income_estimate).toLocaleString('ja-JP'):''}"></div>
     </div>`).join('');
   host.querySelectorAll('.dep-yen').forEach(bindYenInput);
-  if(!ctx.canEdit){
-    host.querySelectorAll('input,select,textarea,button').forEach(el=>el.disabled=true);
-  }
 }
 
 function readDependentCards(){
@@ -107,8 +104,16 @@ async function recordConfirmation(){
 }
 
 try{
-  ctx=await requireStaffContext();
-  const {assignment,canEdit}=ctx;
+  const {data:{user}}=await supabase.auth.getUser();
+  if(!user){location.replace('./login.html');throw new Error('ログインが必要です。');}
+  const {data:assignment,error:assignmentError}=await supabase
+    .from('staff_assignments')
+    .select('id,status,staff_members!inner(display_name,birth_date)')
+    .eq('auth_user_id',user.id)
+    .eq('year',YEAR)
+    .single();
+  if(assignmentError||!assignment)throw new Error('対象スタッフを確認できません。');
+  ctx={user,assignment};
   $('displayName').value=assignment.staff_members.display_name||'';
   $('birthDate').value=assignment.staff_members.birth_date||'';
   bindYenInput($('spouseIncome'));
@@ -163,7 +168,6 @@ try{
   $('spouseHasRetirementIncome').onchange=toggleSpouseConditional;
 
   $('addDependent').onclick=()=>{
-    if(!ctx.canEdit)return;
     dependents.push(depDefaults());
     renderDependents();
     document.querySelector('[data-dep-key]:last-child')?.scrollIntoView({behavior:'smooth',block:'center'});
@@ -171,7 +175,7 @@ try{
 
   document.addEventListener('click',e=>{
     const btn=e.target.closest('[data-remove-dep]');
-    if(!btn||!ctx.canEdit)return;
+    if(!btn)return;
     const key=btn.dataset.removeDep;
     const row=dependents.find(d=>(d._key||d.id)===key);
     if(row?.id)deletedDependentIds.push(row.id);
@@ -179,97 +183,75 @@ try{
     renderDependents();
   });
 
-  if(!canEdit){
-    $('readonlyNotice').classList.remove('hidden');
-    $('declarationForm').querySelectorAll('input:not([readonly]),select,textarea').forEach(el=>el.disabled=true);
-    $('addDependent').disabled=true;
-    $('saveDeclaration').textContent='内容を確認して年末調整へ';
-  }
 
   $('declarationForm').onsubmit=async e=>{
     e.preventDefault();hide($('pageError'));
     const btn=$('saveDeclaration'),original=btn.textContent;
-    btn.disabled=true;btn.textContent=ctx.canEdit?'保存中…':'確認中…';
+    btn.disabled=true;btn.textContent='保存中…';
     try{
-      if(ctx.canEdit){
-        const postal=$('postalCode').value.replace(/-/g,'').trim();
-        if(!/^\d{7}$/.test(postal))throw new Error('郵便番号は7桁の数字で入力してください。');
-        const basicPayload={
-          staff_assignment_id:assignment.id,
-          name_kana:$('nameKana').value.trim(),
-          postal_code:postal,address:$('address').value.trim(),
-          household_head_name:$('householdHeadName').value.trim(),
-          relationship_to_household_head:$('relationship').value.trim(),
-          updated_at:new Date().toISOString()
-        };
-        if(!basicPayload.name_kana||!basicPayload.address||!basicPayload.household_head_name||!basicPayload.relationship_to_household_head){
-          throw new Error('本人情報の必須項目を入力してください。');
-        }
-        const hasSpouse=$('hasSpouse').value==='yes';
-        if(hasSpouse&&(!$('spouseName').value.trim()||!$('spouseBirth').value))throw new Error('配偶者の氏名と生年月日を入力してください。');
+      const postal=$('postalCode').value.replace(/-/g,'').trim();
+      if(!/^\d{7}$/.test(postal))throw new Error('郵便番号は7桁の数字で入力してください。');
 
-        const depRows=readDependentCards();
-        for(const d of depRows){
-          if(!d.name||!d.birth_date||!d.relationship)throw new Error('扶養親族の氏名・生年月日・続柄を入力してください。');
-        }
-
-        const incomePayload={
-          staff_assignment_id:assignment.id,
-          disability_category:$('selfDisability').value,
-          widow_single_parent:$('widowSingleParent').value,
-          working_student:$('workingStudent').checked,
-          secondary_dependent_declaration_submitted:$('secondaryDependentDeclarationSubmitted').checked,
-          disability_student_detail:$('disabilityStudentDetail').value.trim(),
-          updated_at:new Date().toISOString()
-        };
-        const spousePayload={
-          staff_assignment_id:assignment.id,has_spouse:hasSpouse,
-          spouse_name:hasSpouse?$('spouseName').value.trim():'',
-          spouse_name_kana:hasSpouse?$('spouseKana').value.trim():'',
-          birth_date:hasSpouse?($('spouseBirth').value||null):null,
-          estimated_income:hasSpouse?parseYenInput($('spouseIncome').value):0,
-          living_together:hasSpouse?$('spouseLiving').checked:false,
-          address:hasSpouse?$('spouseAddress').value.trim():'',
-          nonresident:hasSpouse?$('spouseNonresident').checked:false,
-          livelihood_support_amount:hasSpouse&&$('spouseNonresident').checked?parseYenInput($('spouseLivelihoodSupport').value):0,
-          change_date:hasSpouse?($('spouseChangeDate').value||null):null,
-          change_reason:hasSpouse?$('spouseChangeReason').value.trim():'',
-          has_retirement_income:hasSpouse?$('spouseHasRetirementIncome').checked:false,
-          retirement_income_estimate:hasSpouse&&$('spouseHasRetirementIncome').checked?parseYenInput($('spouseRetirementIncome').value):0,
-          updated_at:new Date().toISOString()
-        };
-
-        const [{error:be},{error:ie},{error:se}]=await Promise.all([
-          supabase.from('staff_basic_info').upsert(basicPayload,{onConflict:'staff_assignment_id'}),
-          supabase.from('staff_income_info').upsert(incomePayload,{onConflict:'staff_assignment_id'}),
-          supabase.from('staff_spouse_info').upsert(spousePayload,{onConflict:'staff_assignment_id'})
-        ]);
-        if(be||ie||se)throw be||ie||se;
-
-        for(const depId of deletedDependentIds){
-          const {error}=await supabase.from('staff_dependents').delete().eq('id',depId);
-          if(error)throw error;
-        }
-        for(const d of depRows){
-          const payload={...d,staff_assignment_id:assignment.id,updated_at:new Date().toISOString()};
-          delete payload.id;
-          if(d.id){
-            const {error}=await supabase.from('staff_dependents').update(payload).eq('id',d.id);
-            if(error)throw error;
-          }else{
-            const {error}=await supabase.from('staff_dependents').insert(payload);
-            if(error)throw error;
-          }
-        }
-        await Promise.all([
-          markSectionComplete(assignment.id,'basic'),
-          markSectionComplete(assignment.id,'spouse_dependents')
-        ]);
+      const basicPayload={
+        name_kana:$('nameKana').value.trim(),
+        postal_code:postal,
+        address:$('address').value.trim(),
+        household_head_name:$('householdHeadName').value.trim(),
+        relationship_to_household_head:$('relationship').value.trim()
+      };
+      if(!basicPayload.name_kana||!basicPayload.address||!basicPayload.household_head_name||!basicPayload.relationship_to_household_head){
+        throw new Error('本人情報の必須項目を入力してください。');
       }
-      await recordConfirmation();
+
+      const hasSpouse=$('hasSpouse').value==='yes';
+      if(hasSpouse&&(!$('spouseName').value.trim()||!$('spouseBirth').value)){
+        throw new Error('配偶者の氏名と生年月日を入力してください。');
+      }
+
+      const depRows=readDependentCards();
+      for(const d of depRows){
+        if(!d.name||!d.birth_date||!d.relationship){
+          throw new Error('扶養親族の氏名・生年月日・続柄を入力してください。');
+        }
+      }
+
+      const incomePayload={
+        disability_category:$('selfDisability').value,
+        widow_single_parent:$('widowSingleParent').value,
+        working_student:$('workingStudent').checked,
+        secondary_dependent_declaration_submitted:$('secondaryDependentDeclarationSubmitted').checked,
+        disability_student_detail:$('disabilityStudentDetail').value.trim()
+      };
+
+      const spousePayload={
+        has_spouse:hasSpouse,
+        spouse_name:hasSpouse?$('spouseName').value.trim():'',
+        spouse_name_kana:hasSpouse?$('spouseKana').value.trim():'',
+        birth_date:hasSpouse?($('spouseBirth').value||null):null,
+        estimated_income:hasSpouse?parseYenInput($('spouseIncome').value):0,
+        living_together:hasSpouse?$('spouseLiving').checked:false,
+        address:hasSpouse?$('spouseAddress').value.trim():'',
+        nonresident:hasSpouse?$('spouseNonresident').checked:false,
+        livelihood_support_amount:hasSpouse&&$('spouseNonresident').checked?parseYenInput($('spouseLivelihoodSupport').value):0,
+        change_date:hasSpouse?($('spouseChangeDate').value||null):null,
+        change_reason:hasSpouse?$('spouseChangeReason').value.trim():'',
+        has_retirement_income:hasSpouse?$('spouseHasRetirementIncome').checked:false,
+        retirement_income_estimate:hasSpouse&&$('spouseHasRetirementIncome').checked?parseYenInput($('spouseRetirementIncome').value):0
+      };
+
+      const {error}=await supabase.rpc('save_staff_fuyou_declaration',{
+        p_assignment_id:assignment.id,
+        p_basic:basicPayload,
+        p_income:incomePayload,
+        p_spouse:spousePayload,
+        p_dependents:depRows
+      });
+      if(error)throw error;
+
       location.replace('./index.html');
     }catch(err){
-      show($('pageError'),err.message||'保存に失敗しました。');
+      console.error(err);
+      show($('pageError'),err?.message||'保存に失敗しました。');
       btn.disabled=false;btn.textContent=original;
     }
   };
