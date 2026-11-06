@@ -2,15 +2,18 @@ import { supabase, YEAR, $, show, hide, bindLogout, bindYenInput, setYenInput, p
 
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let ctx, dependents=[], deletedDependentIds=[];
+function ageAtEndOf2026(birthDate){if(!birthDate)return null;const d=new Date(`${birthDate}T00:00:00`);if(Number.isNaN(d.getTime()))return null;return 2026-d.getFullYear();}
+function isUnder16(birthDate){const a=ageAtEndOf2026(birthDate);return a!==null&&a<16;}
+function dependentTaxLabel(birthDate){const a=ageAtEndOf2026(birthDate);if(a===null)return '生年月日入力後に判定';return a<16?'16歳未満（住民税欄）':'16歳以上';}
 
 function depDefaults(){
   return {
     id:null,_key:crypto.randomUUID(),name:'',name_kana:'',birth_date:'',relationship:'',
     estimated_income:0,living_together:true,address:'',nonresident:false,disability_category:'なし',
-    nonresident_reason:'該当なし',livelihood_support_amount:0,change_date:null,change_reason:'',
+    dependent_category:'該当なし',nonresident_reason:'該当なし',livelihood_support_amount:0,change_date:null,change_reason:'',
     other_income_earner_claims:false,other_income_earner_name:'',other_income_earner_relationship:'',
     other_income_earner_address:'',resident_tax_excluded_foreign_dependent:false,
-    has_retirement_income:false,retirement_income_estimate:0
+    has_retirement_income:false,retirement_income_estimate:0,retirement_disability_category:'なし',retirement_widow_single_parent:'なし'
   };
 }
 
@@ -22,7 +25,7 @@ function renderDependents(){
   }
   host.innerHTML=dependents.map((d,i)=>`
     <div class="dependent-declaration-card" data-dep-key="${d._key||d.id}">
-      <div class="dependent-card-head"><strong>扶養親族 ${i+1}</strong><button type="button" class="btn tiny secondary" data-remove-dep="${d._key||d.id}">削除</button></div>
+      <div class="dependent-card-head"><strong>扶養親族 ${i+1} <span class="field-badge optional">${dependentTaxLabel(d.birth_date)}</span></strong><button type="button" class="btn tiny secondary" data-remove-dep="${d._key||d.id}">削除</button></div>
       <input type="hidden" data-f="id" value="${esc(d.id||'')}">
       <div class="declaration-grid">
         <div class="field"><label>氏名 <span class="field-badge required">必須</span></label><input data-f="name" value="${esc(d.name)}"></div>
@@ -30,7 +33,7 @@ function renderDependents(){
         <div class="field"><label>生年月日 <span class="field-badge required">必須</span></label><input data-f="birth_date" type="date" value="${esc(d.birth_date||'')}"></div>
         <div class="field"><label>続柄 <span class="field-badge required">必須</span></label><input data-f="relationship" value="${esc(d.relationship)}"></div>
         <div class="field"><label>所得見積額（円）</label><input data-f="estimated_income" class="dep-yen" type="text" inputmode="numeric" value="${Number(d.estimated_income||0)>0?Number(d.estimated_income).toLocaleString('ja-JP'):''}"></div>
-        <div class="field"><label>障害者区分</label><select data-f="disability_category"><option ${d.disability_category==='なし'?'selected':''}>なし</option><option ${d.disability_category==='一般障害者'?'selected':''}>一般障害者</option><option ${d.disability_category==='特別障害者'?'selected':''}>特別障害者</option></select></div>
+        <div class="field"><label>障害者区分</label><select data-f="disability_category"><option ${d.disability_category==='なし'?'selected':''}>なし</option><option ${d.disability_category==='一般障害者'?'selected':''}>一般障害者</option><option ${d.disability_category==='特別障害者'?'selected':''}>特別障害者</option><option ${d.disability_category==='同居特別障害者'?'selected':''}>同居特別障害者</option></select></div><div class="field"><label>扶養親族区分</label><select data-f="dependent_category">${['該当なし','同居老親等','その他の老人扶養親族','特定扶養親族','特定親族'].map(x=>`<option ${d.dependent_category===x?'selected':''}>${x}</option>`).join('')}</select></div>
       </div>
       <label class="inline-check"><input data-f="living_together" type="checkbox" ${d.living_together?'checked':''}> 同居している</label>
       <label class="inline-check"><input data-f="nonresident" type="checkbox" ${d.nonresident?'checked':''}> 非居住者に該当する</label>
@@ -51,7 +54,7 @@ function renderDependents(){
       <div class="field"><label>他の所得者の住所又は居所</label><textarea data-f="other_income_earner_address" rows="2">${esc(d.other_income_earner_address)}</textarea></div>
       <label class="inline-check"><input data-f="resident_tax_excluded_foreign_dependent" type="checkbox" ${d.resident_tax_excluded_foreign_dependent?'checked':''}> 16歳未満の控除対象外国外扶養親族に該当する</label>
       <label class="inline-check"><input data-f="has_retirement_income" type="checkbox" ${d.has_retirement_income?'checked':''}> 令和8年中に退職手当等を有する</label>
-      <div class="field"><label>退職所得を除く所得見積額（円）</label><input data-f="retirement_income_estimate" class="dep-yen" type="text" inputmode="numeric" value="${Number(d.retirement_income_estimate||0)>0?Number(d.retirement_income_estimate).toLocaleString('ja-JP'):''}"></div>
+      <div class="field"><label>退職所得を除く所得見積額（円）</label><input data-f="retirement_income_estimate" class="dep-yen" type="text" inputmode="numeric" value="${Number(d.retirement_income_estimate||0)>0?Number(d.retirement_income_estimate).toLocaleString('ja-JP'):''}"></div><div class="declaration-grid"><div class="field"><label>退職手当等欄の障害者区分</label><select data-f="retirement_disability_category"><option ${d.retirement_disability_category==='なし'?'selected':''}>なし</option><option ${d.retirement_disability_category==='一般障害者'?'selected':''}>一般障害者</option><option ${d.retirement_disability_category==='特別障害者'?'selected':''}>特別障害者</option></select></div><div class="field"><label>退職手当等欄の寡婦・ひとり親</label><select data-f="retirement_widow_single_parent"><option ${d.retirement_widow_single_parent==='なし'?'selected':''}>なし</option><option ${d.retirement_widow_single_parent==='寡婦'?'selected':''}>寡婦</option><option ${d.retirement_widow_single_parent==='ひとり親'?'selected':''}>ひとり親</option></select></div></div>
     </div>`).join('');
   host.querySelectorAll('.dep-yen').forEach(bindYenInput);
 }
@@ -71,6 +74,7 @@ function readDependentCards(){
       address:get('address').value.trim(),
       nonresident:checked('nonresident'),
       disability_category:get('disability_category').value,
+      dependent_category:isUnder16(get('birth_date').value)?'該当なし':get('dependent_category').value,
       nonresident_reason:checked('nonresident')?get('nonresident_reason').value:'該当なし',
       livelihood_support_amount:checked('nonresident')?parseYenInput(get('livelihood_support_amount').value):0,
       change_date:get('change_date').value||null,
@@ -81,7 +85,9 @@ function readDependentCards(){
       other_income_earner_address:checked('other_income_earner_claims')?get('other_income_earner_address').value.trim():'',
       resident_tax_excluded_foreign_dependent:checked('nonresident')&&checked('resident_tax_excluded_foreign_dependent'),
       has_retirement_income:checked('has_retirement_income'),
-      retirement_income_estimate:checked('has_retirement_income')?parseYenInput(get('retirement_income_estimate').value):0
+      retirement_income_estimate:checked('has_retirement_income')?parseYenInput(get('retirement_income_estimate').value):0,
+      retirement_disability_category:checked('has_retirement_income')?get('retirement_disability_category').value:'なし',
+      retirement_widow_single_parent:checked('has_retirement_income')?get('retirement_widow_single_parent').value:'なし'
     };
   });
 }
@@ -140,7 +146,7 @@ try{
     $('selfDisability').value=income.disability_category||'なし';
     $('widowSingleParent').value=income.widow_single_parent||'なし';
     $('workingStudent').checked=!!income.working_student;
-    $('disabilityStudentDetail').value=income.disability_student_detail||'';
+    $('disabilityStudentDetail').value=income.disability_student_detail||'';$('selfChangeDate').value=income.self_change_date||'';$('selfChangeReason').value=income.self_change_reason||'';
   }
   if(spouse){
     $('hasSpouse').value=spouse.has_spouse?'yes':'no';
@@ -150,12 +156,12 @@ try{
     setYenInput($('spouseIncome'),spouse.estimated_income);
     $('spouseLiving').checked=!!spouse.living_together;
     $('spouseNonresident').checked=!!spouse.nonresident;
-    $('spouseAddress').value=spouse.address||'';
+    $('spouseAddress').value=spouse.address||'';$('spouseDisability').value=spouse.disability_category||'なし';
     setYenInput($('spouseLivelihoodSupport'),spouse.livelihood_support_amount);
     $('spouseChangeDate').value=spouse.change_date||'';
     $('spouseChangeReason').value=spouse.change_reason||'';
     $('spouseHasRetirementIncome').checked=!!spouse.has_retirement_income;
-    setYenInput($('spouseRetirementIncome'),spouse.retirement_income_estimate);
+    setYenInput($('spouseRetirementIncome'),spouse.retirement_income_estimate);$('spouseRetirementDisability').value=spouse.retirement_disability_category||'なし';$('spouseRetirementWidow').value=spouse.retirement_widow_single_parent||'なし';
   }
   dependents=(deps||[]).map(d=>({...d,_key:d.id}));
   renderDependents();
@@ -219,7 +225,7 @@ try{
         widow_single_parent:$('widowSingleParent').value,
         working_student:$('workingStudent').checked,
         secondary_dependent_declaration_submitted:false,
-        disability_student_detail:$('disabilityStudentDetail').value.trim()
+        disability_student_detail:$('disabilityStudentDetail').value.trim(),self_change_date:$('selfChangeDate').value||null,self_change_reason:$('selfChangeReason').value.trim()
       };
 
       const spousePayload={
@@ -230,12 +236,12 @@ try{
         estimated_income:hasSpouse?parseYenInput($('spouseIncome').value):0,
         living_together:hasSpouse?$('spouseLiving').checked:false,
         address:hasSpouse?$('spouseAddress').value.trim():'',
-        nonresident:hasSpouse?$('spouseNonresident').checked:false,
+        nonresident:hasSpouse?$('spouseNonresident').checked:false,disability_category:hasSpouse?$('spouseDisability').value:'なし',
         livelihood_support_amount:hasSpouse&&$('spouseNonresident').checked?parseYenInput($('spouseLivelihoodSupport').value):0,
         change_date:hasSpouse?($('spouseChangeDate').value||null):null,
         change_reason:hasSpouse?$('spouseChangeReason').value.trim():'',
         has_retirement_income:hasSpouse?$('spouseHasRetirementIncome').checked:false,
-        retirement_income_estimate:hasSpouse&&$('spouseHasRetirementIncome').checked?parseYenInput($('spouseRetirementIncome').value):0
+        retirement_income_estimate:hasSpouse&&$('spouseHasRetirementIncome').checked?parseYenInput($('spouseRetirementIncome').value):0,retirement_disability_category:hasSpouse&&$('spouseHasRetirementIncome').checked?$('spouseRetirementDisability').value:'なし',retirement_widow_single_parent:hasSpouse&&$('spouseHasRetirementIncome').checked?$('spouseRetirementWidow').value:'なし'
       };
 
       const {error}=await supabase.rpc('save_staff_fuyou_declaration',{

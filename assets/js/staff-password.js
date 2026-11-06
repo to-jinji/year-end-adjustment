@@ -22,7 +22,7 @@ async function destinationAfterPasswordChange(){
     .eq('staff_assignment_id',assignment.id)
     .maybeSingle();
   if(confirmationError)throw confirmationError;
-  return confirmation?'./index.html':'./fuyou-declaration.html?v=0.12.1';
+  return confirmation?'./index.html':'./fuyou-declaration.html?v=0.13.0';
 }
 
 const {data:{user}}=await supabase.auth.getUser();

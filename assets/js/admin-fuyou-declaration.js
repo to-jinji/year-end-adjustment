@@ -32,10 +32,10 @@ const spouseText=spouse?.has_spouse
  : 'なし';
 
 const depHtml=(deps||[]).length?(deps||[]).map(d=>`<div class="dep-view"><strong>${esc(d.name)}</strong>（${esc(d.relationship)}）<br>
-生年月日：${esc(d.birth_date||'')} / 所得見積：${yen(d.estimated_income)}円 / 障害者区分：${esc(d.disability_category||'なし')}<br>
+生年月日：${esc(d.birth_date||'')} / 所得見積：${yen(d.estimated_income)}円 / 障害者区分：${esc(d.disability_category||'なし')} / 扶養親族区分：${esc(d.dependent_category||'該当なし')}<br>
 ${d.nonresident?`非居住者：${esc(d.nonresident_reason||'')} / 送金額等 ${yen(d.livelihood_support_amount)}円<br>`:''}
 ${d.other_income_earner_claims?`他の所得者が控除：${esc(d.other_income_earner_name||'')} / ${esc(d.other_income_earner_relationship||'')}<br>`:''}
-${d.has_retirement_income?`退職手当等あり / 退職所得を除く所得見積 ${yen(d.retirement_income_estimate)}円<br>`:''}
+${d.has_retirement_income?`退職手当等あり / 退職所得を除く所得見積 ${yen(d.retirement_income_estimate)}円 / 障害者区分 ${esc(d.retirement_disability_category||'なし')} / 寡婦・ひとり親 ${esc(d.retirement_widow_single_parent||'なし')}<br>`:''}
 ${d.change_date?`異動：${esc(d.change_date)} ${esc(d.change_reason||'')}`:''}</div>`).join(''):'<p class="muted">扶養親族なし</p>';
 
 $('declarationView').innerHTML=`
@@ -50,10 +50,9 @@ $('declarationView').innerHTML=`
 <dt>障害者区分</dt><dd>${esc(income?.disability_category||'なし')}</dd>
 <dt>寡婦・ひとり親</dt><dd>${esc(income?.widow_single_parent||'なし')}</dd>
 <dt>勤労学生</dt><dd>${income?.working_student?'該当':'該当なし'}</dd>
-<dt>従たる給与の申告書</dt><dd>${income?.secondary_dependent_declaration_submitted?'提出あり':'提出なし'}</dd>
-<dt>障害者・勤労学生の内容</dt><dd>${esc(income?.disability_student_detail||'')}</dd>
+<dt>障害者・勤労学生の内容</dt><dd>${esc(income?.disability_student_detail||'')}</dd><dt>本人の異動</dt><dd>${esc(income?.self_change_date||'')} ${esc(income?.self_change_reason||'')}</dd>
 </dl></section>
 <section><h2>配偶者</h2><p>${esc(spouseText)}</p>
-${spouse?.has_spouse?`<dl class="kv"><dt>非居住者</dt><dd>${spouse.nonresident?'該当':'該当なし'}</dd><dt>送金額等</dt><dd>${yen(spouse.livelihood_support_amount)}円</dd><dt>異動</dt><dd>${esc(spouse.change_date||'')} ${esc(spouse.change_reason||'')}</dd><dt>退職手当等</dt><dd>${spouse.has_retirement_income?'あり':'なし'}</dd></dl>`:''}
+${spouse?.has_spouse?`<dl class="kv"><dt>障害者区分</dt><dd>${esc(spouse.disability_category||'なし')}</dd><dt>非居住者</dt><dd>${spouse.nonresident?'該当':'該当なし'}</dd><dt>送金額等</dt><dd>${yen(spouse.livelihood_support_amount)}円</dd><dt>異動</dt><dd>${esc(spouse.change_date||'')} ${esc(spouse.change_reason||'')}</dd><dt>退職手当等</dt><dd>${spouse.has_retirement_income?'あり':'なし'}${spouse.has_retirement_income?` / 障害者区分 ${esc(spouse.retirement_disability_category||'なし')} / 寡婦・ひとり親 ${esc(spouse.retirement_widow_single_parent||'なし')}`:''}</dd></dl>`:''}
 </section>
 <section><h2>扶養親族</h2>${depHtml}</section>`;
