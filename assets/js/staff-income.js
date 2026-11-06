@@ -1,4 +1,4 @@
-import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, saveAndReturn, bindYenInput, setYenInput, parseYenInput, finishPageLoading, showActionToast } from './staff-common.js';
+import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, saveAndReturn, bindYenInput, setYenInput, parseYenInput, finishPageLoading, showActionToast } from './staff-common.js?v=0.13.1';
 
 const OTHER_EMPLOYER_SLIP_CATEGORY='他勤務先の源泉徴収票（確認用）';
 const IMAGE_MAX_DIMENSION=1800;

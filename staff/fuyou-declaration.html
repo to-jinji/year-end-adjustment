@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>扶養控除等申告書 | 年末調整</title>
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="../assets/css/style.css?v=0.13.0">
+<link rel="stylesheet" href="../assets/css/style.css?v=0.13.1">
 <style>
 .declaration-intro{margin-bottom:18px}.declaration-intro p{margin:0;line-height:1.65}.declaration-intro p+p{margin-top:6px}
 .declaration-section{margin:18px 0;padding-top:18px;border-top:1px solid #dbe3ee}
@@ -59,7 +59,7 @@
           <div class="field"><label>寡婦・ひとり親</label><select id="widowSingleParent"><option>なし</option><option>寡婦</option><option>ひとり親</option></select></div>
         </div>
         <label class="inline-check"><input id="workingStudent" type="checkbox"> 勤労学生に該当する</label>
-        <div class="field"><label>障害者または勤労学生の内容 <span class="field-badge optional">該当する場合</span></label><textarea id="disabilityStudentDetail" rows="2"></textarea></div><div class="declaration-grid"><div class="field"><label>本人の異動年月日 <span class="field-badge optional">異動がある場合</span></label><input id="selfChangeDate" type="date"></div><div class="field"><label>本人の異動事由 <span class="field-badge optional">異動がある場合</span></label><input id="selfChangeReason" placeholder="例：障害者該当、寡婦該当など"></div></div>
+        <div class="field"><label>障害者または勤労学生の内容 <span class="field-badge optional">該当する場合</span></label><textarea id="disabilityStudentDetail" rows="2"></textarea></div><div class="declaration-grid"><div class="field"><label>本人の異動年月日 <span class="field-badge optional">異動がある場合</span></label><input id="selfChangeDate" type="date" min="1000-01-01" max="9999-12-31"></div><div class="field"><label>本人の異動事由 <span class="field-badge optional">異動がある場合</span></label><input id="selfChangeReason" placeholder="例：障害者該当、寡婦該当など"></div></div>
       </section>
 
       <section class="declaration-section">
@@ -69,7 +69,7 @@
           <div class="declaration-grid">
             <div class="field"><label>氏名 <span class="field-badge required">必須</span></label><input id="spouseName"></div>
             <div class="field"><label>フリガナ</label><input id="spouseKana"></div>
-            <div class="field"><label>生年月日 <span class="field-badge required">必須</span></label><input id="spouseBirth" type="date"></div>
+            <div class="field"><label>生年月日 <span class="field-badge required">必須</span></label><input id="spouseBirth" type="date" min="1000-01-01" max="9999-12-31"></div>
             <div class="field"><label>所得見積額（円）</label><input id="spouseIncome" type="text" inputmode="numeric"></div><div class="field"><label>障害者区分</label><select id="spouseDisability"><option>なし</option><option>一般障害者</option><option>特別障害者</option><option>同居特別障害者</option></select></div>
           </div>
           <label class="inline-check"><input id="spouseLiving" type="checkbox" checked> 同居している</label>
@@ -79,7 +79,7 @@
             <div class="field"><label>生計を一にする事実（送金額等・円）</label><input id="spouseLivelihoodSupport" type="text" inputmode="numeric"></div>
           </div>
           <div class="declaration-grid">
-            <div class="field"><label>異動年月日</label><input id="spouseChangeDate" type="date"></div>
+            <div class="field"><label>異動年月日</label><input id="spouseChangeDate" type="date" min="1000-01-01" max="9999-12-31"></div>
             <div class="field"><label>異動事由</label><input id="spouseChangeReason"></div>
           </div>
           <label class="inline-check"><input id="spouseHasRetirementIncome" type="checkbox"> 令和8年中に退職手当等を有する</label>
@@ -96,6 +96,6 @@
     </form>
   </section>
 </main>
-<script type="module" src="../assets/js/staff-fuyou-declaration.js?v=0.13.0"></script>
+<script type="module" src="../assets/js/staff-fuyou-declaration.js?v=0.13.1"></script>
 </body>
 </html>

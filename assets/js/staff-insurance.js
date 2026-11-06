@@ -1,4 +1,4 @@
-import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, yen, saveAndReturn, bindYenInput, parseYenInput, runAddAction, finishPageLoading } from './staff-common.js';
+import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, yen, saveAndReturn, bindYenInput, parseYenInput, runAddAction, finishPageLoading } from './staff-common.js?v=0.13.1';
 try {
 let ctx;
 try { ctx = await requireStaffContext(); }

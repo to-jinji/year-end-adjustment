@@ -1,3 +1,4 @@
+import './date-year-guard.js?v=0.13.1';
 import {supabase} from './supabase.js';
 const YEAR=2026;
 const $=id=>document.getElementById(id);

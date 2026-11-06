@@ -1,4 +1,4 @@
-import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, yen, saveAndReturn, bindYenInput, parseYenInput, runAddAction, finishPageLoading } from './staff-common.js';
+import { supabase, $, show, hide, requireStaffContext, formatDeadline, lockForm, markSectionComplete, bindLogout, yen, saveAndReturn, bindYenInput, parseYenInput, runAddAction, finishPageLoading } from './staff-common.js?v=0.13.1';
 try {
 let ctx;try{ctx=await requireStaffContext();}catch{show($('pageError'),'対象データを取得できません。');throw new Error('assignment not found');}
 const {assignment,deadline,canEdit}=ctx;$('deadline').textContent=formatDeadline(deadline);const body=$('previousBody');['paymentAmount','withholdingTax','socialInsurance'].forEach(id=>bindYenInput($(id)));

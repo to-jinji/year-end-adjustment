@@ -1,4 +1,4 @@
-import { supabase, YEAR, $, show, hide, bindLogout, bindYenInput, setYenInput, parseYenInput, finishPageLoading } from './staff-common.js';
+import { supabase, YEAR, $, show, hide, bindLogout, bindYenInput, setYenInput, parseYenInput, finishPageLoading } from './staff-common.js?v=0.13.1';
 
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let ctx, dependents=[], deletedDependentIds=[];
@@ -175,7 +175,6 @@ try{
   $('addDependent').onclick=()=>{
     dependents.push(depDefaults());
     renderDependents();
-    document.querySelector('[data-dep-key]:last-child')?.scrollIntoView({behavior:'smooth',block:'center'});
   };
 
   document.addEventListener('click',e=>{

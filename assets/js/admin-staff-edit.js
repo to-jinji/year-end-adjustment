@@ -1,3 +1,4 @@
+import './date-year-guard.js?v=0.13.1';
 import {supabase} from './supabase.js';
 const $=id=>document.getElementById(id);const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const show=(el,msg)=>{el.textContent=msg;el.style.display='block'};const hide=el=>{el.style.display='none';el.textContent=''};
