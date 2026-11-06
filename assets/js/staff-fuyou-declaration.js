@@ -140,7 +140,6 @@ try{
     $('selfDisability').value=income.disability_category||'なし';
     $('widowSingleParent').value=income.widow_single_parent||'なし';
     $('workingStudent').checked=!!income.working_student;
-    $('secondaryDependentDeclarationSubmitted').checked=!!income.secondary_dependent_declaration_submitted;
     $('disabilityStudentDetail').value=income.disability_student_detail||'';
   }
   if(spouse){
@@ -219,7 +218,7 @@ try{
         disability_category:$('selfDisability').value,
         widow_single_parent:$('widowSingleParent').value,
         working_student:$('workingStudent').checked,
-        secondary_dependent_declaration_submitted:$('secondaryDependentDeclarationSubmitted').checked,
+        secondary_dependent_declaration_submitted:false,
         disability_student_detail:$('disabilityStudentDetail').value.trim()
       };
 
