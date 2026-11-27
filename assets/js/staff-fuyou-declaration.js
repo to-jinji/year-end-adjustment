@@ -2,6 +2,7 @@ import { supabase, YEAR, $, show, hide, bindLogout, bindYenInput, setYenInput, p
 
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let ctx, dependents=[], deletedDependentIds=[];
+let declarationDirty=false;
 function ageAtEndOf2026(birthDate){if(!birthDate)return null;const d=new Date(`${birthDate}T00:00:00`);if(Number.isNaN(d.getTime()))return null;return 2026-d.getFullYear();}
 function isUnder16(birthDate){const a=ageAtEndOf2026(birthDate);return a!==null&&a<16;}
 function dependentTaxLabel(birthDate){const a=ageAtEndOf2026(birthDate);if(a===null)return '生年月日入力後に判定';return a<16?'16歳未満（住民税欄）':'16歳以上';}
@@ -167,6 +168,17 @@ try{
   renderDependents();
   toggleSpouse();toggleSpouseConditional();
   if(confirmation?.confirmed_at)$('confirmedInfo').textContent=`前回確認：${new Date(confirmation.confirmed_at).toLocaleString('ja-JP')}`;
+  // The back button is only for staff who have already completed the declaration.
+  // First-time staff must save/confirm the declaration before continuing.
+  if(confirmation?.confirmed_at){
+    $('backToTop').classList.remove('hidden');
+  }
+  $('backToTop').addEventListener('click',()=>{
+    if(declarationDirty && !confirm('保存していない変更があります。変更を破棄して年末調整TOPに戻りますか？'))return;
+    location.assign('./index.html');
+  });
+  $('declarationForm').addEventListener('input',()=>{declarationDirty=true;});
+  $('declarationForm').addEventListener('change',()=>{declarationDirty=true;});
 
   $('hasSpouse').onchange=toggleSpouse;
   $('spouseNonresident').onchange=toggleSpouseConditional;
@@ -174,6 +186,7 @@ try{
 
   $('addDependent').onclick=()=>{
     dependents.push(depDefaults());
+    declarationDirty=true;
     renderDependents();
   };
 
@@ -184,6 +197,7 @@ try{
     const row=dependents.find(d=>(d._key||d.id)===key);
     if(row?.id)deletedDependentIds.push(row.id);
     dependents=dependents.filter(d=>(d._key||d.id)!==key);
+    declarationDirty=true;
     renderDependents();
   });
 
